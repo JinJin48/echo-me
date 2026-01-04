@@ -31,6 +31,8 @@ cp .env.example .env
 
 ## Usage
 
+### 通常実行
+
 ```bash
 # テキストファイルから生成
 python src/content_generator.py input/sample.txt
@@ -40,6 +42,20 @@ python src/content_generator.py input/sample.md
 
 # 出力ディレクトリを指定
 python src/content_generator.py input/sample.txt -o my_output
+```
+
+### バックグラウンド実行（推奨）
+
+長時間の処理を行う場合は、バックグラウンド実行を推奨します。
+
+```powershell
+# Windows PowerShell
+Start-Process -NoNewWindow python -ArgumentList "src/content_generator.py", "input/sample.txt"
+```
+
+```bash
+# Linux/Mac
+nohup python src/content_generator.py input/sample.txt > output.log 2>&1 &
 ```
 
 ## Output

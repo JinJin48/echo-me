@@ -83,7 +83,13 @@ echo-me/
 - Anthropic Claude API
 - モデル: `claude-sonnet-4-20250514`
 
+### 実行ルール
+- 長時間処理はバックグラウンド実行を基本とする
+- 実行ログはoutput.logに出力
+
 ## Usage
+
+### 通常実行
 
 ```bash
 # 基本的な使用方法
@@ -91,6 +97,18 @@ python src/content_generator.py input/sample.txt
 python src/content_generator.py input/sample.md
 
 # 出力は output/ ディレクトリに生成される
+```
+
+### バックグラウンド実行（推奨）
+
+```powershell
+# Windows PowerShell
+Start-Process -NoNewWindow python -ArgumentList "src/content_generator.py", "input/sample.txt"
+```
+
+```bash
+# Linux/Mac
+nohup python src/content_generator.py input/sample.txt > output.log 2>&1 &
 ```
 
 ## Future Development (Phase 2以降)
