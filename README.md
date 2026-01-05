@@ -31,6 +31,7 @@
   - **x_post.txt**: X(Twitter)投稿（280文字以内、ハッシュタグ付き）
   - **linkedin_post.txt**: LinkedIn投稿
 - Cloud Run + Cloud Schedulerによる定期自動処理
+- Cloud Buildによる自動デプロイ（CI/CD）
 - エラー時のDiscord通知
 
 ## Cost Estimate
@@ -149,6 +150,36 @@ gcloud scheduler jobs create http echo-me-scheduler \
     --oidc-service-account-email=YOUR_PROJECT_NUMBER-compute@developer.gserviceaccount.com
 ```
 
+## CI/CD Automation
+
+mainブランチへのpushで自動的にビルド・デプロイが実行されます。
+
+### 仕組み
+
+1. `git push origin main` を実行
+2. Cloud Build Triggerが検知
+3. `cloudbuild.yaml`に基づいてDockerイメージをビルド
+4. Container Registry (`gcr.io/echo-me-483413/echo-me`) にプッシュ
+5. Cloud Run (`asia-southeast1`) に自動デプロイ
+
+### Cloud Build Triggerの設定
+
+```bash
+# GitHubリポジトリと連携したトリガーを作成
+gcloud builds triggers create github \
+    --repo-name=echo-me \
+    --repo-owner=JinJin48 \
+    --branch-pattern=^main$ \
+    --build-config=cloudbuild.yaml
+```
+
+### 手動ビルド
+
+```bash
+# 手動でCloud Buildを実行
+gcloud builds submit --config=cloudbuild.yaml
+```
+
 ## Environment Variables
 
 | 変数名 | 説明 | 必須 |
@@ -180,6 +211,7 @@ echo-me/
 ├── main.py                    # Cloud Run用エントリーポイント
 ├── Dockerfile                 # Cloud Run用Dockerイメージ定義
 ├── Procfile                   # Cloud Run用プロセス定義
+├── cloudbuild.yaml            # Cloud Build CI/CD設定
 ├── CLAUDE.md                  # Claude Code用コンテキスト
 ├── src/
 │   ├── local_test.py          # ローカルテスト用スクリプト

@@ -19,6 +19,7 @@ echo-meは、音声ファイルやMarkdownファイルからブログ・SNS投�
 - Cloud Run + Cloud Schedulerによる定期自動処理（毎時実行）
 - Discord Webhookによるエラー通知
 - Secret Managerによる認証情報管理
+- Cloud Build CI/CD（mainブランチへのpushで自動デプロイ）
 
 ### Phase 3: 配信自動化（予定）
 - [ ] Notion API連携によるレビューワークフロー
@@ -65,6 +66,12 @@ echo-meは、音声ファイルやMarkdownファイルからブログ・SNS投�
   - `/secrets-token/token.json`
 - サービスアカウントではなくOAuth認証を使用（個人のGoogle Driveアクセスのため）
 
+### CI/CD: Cloud Build + GitHub連携
+- mainブランチへのpushで自動ビルド・デプロイ
+- `cloudbuild.yaml`でビルド・デプロイ手順を定義
+- Container Registry: `gcr.io/echo-me-483413/echo-me`
+- デプロイ先: Cloud Run (`asia-southeast1`)
+
 ### 月額コスト: 約1,000〜1,200円
 | サービス | 月額目安 |
 |----------|----------|
@@ -79,6 +86,7 @@ echo-me/
 ├── main.py                    # Cloud Run用エントリーポイント
 ├── Dockerfile                 # Cloud Run用Dockerイメージ定義
 ├── Procfile                   # Cloud Run用プロセス定義
+├── cloudbuild.yaml            # Cloud Build CI/CD設定
 ├── CLAUDE.md                  # このファイル（Claude Code用コンテキスト）
 ├── src/
 │   ├── local_test.py          # ローカルテスト用スクリプト（OAuth認証）
@@ -198,6 +206,7 @@ Discord Webhookを使用したエラー通知モジュール。
 | `main.py` | Cloud Run用エントリーポイント |
 | `Dockerfile` | Cloud Run用Dockerイメージ定義 |
 | `Procfile` | Cloud Run用プロセス定義（functions-framework起動） |
+| `cloudbuild.yaml` | Cloud Build CI/CD設定（自動ビルド・デプロイ） |
 | `src/local_test.py` | ローカルテスト用スクリプト（OAuth認証） |
 | `src/cloud_function.py` | Cloud Run用コア処理 |
 | `src/modules/file_reader/` | 各種ファイル形式からテキスト抽出 |
