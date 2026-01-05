@@ -31,10 +31,11 @@ SAP Community / LinkedIn / X / JSUG / ASUG
 
 ```
 echo-me/
+├── main.py                    # Cloud Run用エントリーポイント
 ├── CLAUDE.md                  # このファイル（Claude Code用コンテキスト）
 ├── src/
 │   ├── local_test.py          # ローカルテスト用スクリプト（OAuth認証）
-│   ├── cloud_function.py      # Cloud Functions用エントリーポイント
+│   ├── cloud_function.py      # Cloud Run/Functions用コア処理
 │   └── modules/
 │       ├── __init__.py
 │       ├── file_reader/       # ファイル読み込みモジュール
@@ -140,8 +141,9 @@ Discord Webhookを使用したエラー通知モジュール。
 
 | ファイル | 役割 |
 |----------|------|
+| `main.py` | Cloud Run用エントリーポイント（Buildpacks用） |
 | `src/local_test.py` | ローカルテスト用スクリプト（OAuth認証） |
-| `src/cloud_function.py` | Cloud Functions用エントリーポイント |
+| `src/cloud_function.py` | Cloud Run/Functions用コア処理 |
 | `src/modules/file_reader/` | 各種ファイル形式からテキスト抽出 |
 | `src/modules/llm_processor/` | Claude APIを使用したコンテンツ生成 |
 | `src/modules/content_formatter/` | 出力ファイルの生成・保存 |
@@ -229,7 +231,7 @@ python src/local_test.py
 
 ### Phase 2: 自動化強化 ✅
 - Google Drive連携によるフォルダ監視・ファイル自動取得
-- Cloud Functionsによる自動処理
+- Cloud Run/Functionsによる自動処理
 - Discord Webhookによるエラー通知
 
 ### Phase 3: 配信自動化（予定）

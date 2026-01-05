@@ -10,7 +10,7 @@
   - **blog.md**: 構造化されたブログ記事
   - **x_post.txt**: X(Twitter)投稿（280文字以内、ハッシュタグ付き）
   - **linkedin_post.txt**: LinkedIn投稿
-- Cloud Functionsによる自動処理
+- Cloud Run/Functionsによる自動処理
 - エラー時のDiscord通知
 
 ## Installation
@@ -70,10 +70,11 @@ python src/local_test.py
 
 ```
 echo-me/
+├── main.py                    # Cloud Run用エントリーポイント
 ├── CLAUDE.md                  # Claude Code用コンテキスト
 ├── src/
 │   ├── local_test.py          # ローカルテスト用スクリプト
-│   ├── cloud_function.py      # Cloud Functions用エントリーポイント
+│   ├── cloud_function.py      # Cloud Run/Functions用コア処理
 │   └── modules/
 │       ├── file_reader/       # ファイル読み込みモジュール
 │       ├── llm_processor/     # Claude API呼び出しモジュール
@@ -117,7 +118,7 @@ DISCORD_WEBHOOK_URL=your_webhook_url  # オプション
 > - `credentials.json`および`token.json`は**絶対にGitHubにプッシュしないでください**
 > - これらのファイルは`.gitignore`に登録されています
 
-## Cloud Functions デプロイ
+## Cloud Run デプロイ
 
 ### 1. GCPプロジェクトの設定
 
@@ -128,7 +129,8 @@ gcloud config set project echo-me-project
 
 # 必要なAPIを有効化
 gcloud services enable drive.googleapis.com
-gcloud services enable cloudfunctions.googleapis.com
+gcloud services enable run.googleapis.com
+gcloud services enable cloudbuild.googleapis.com
 gcloud services enable cloudscheduler.googleapis.com
 ```
 
@@ -143,17 +145,17 @@ gcloud iam service-accounts create echo-me-sa \
 # echo-me-sa@echo-me-project.iam.gserviceaccount.com
 ```
 
-### 3. Cloud Functionsへのデプロイ
+### 3. Cloud Runへのデプロイ
 
 ```bash
-gcloud functions deploy echo-me \
-    --runtime python311 \
-    --trigger-http \
-    --entry-point http_handler \
-    --source src/ \
+# ソースコードから直接デプロイ（Buildpacks使用）
+gcloud run deploy echo-me \
+    --source . \
+    --region asia-northeast1 \
     --set-env-vars ANTHROPIC_API_KEY=xxx,GDRIVE_INPUT_FOLDER_ID=xxx,GDRIVE_OUTPUT_FOLDER_ID=xxx,DISCORD_WEBHOOK_URL=xxx \
-    --memory 512MB \
-    --timeout 540s
+    --memory 512Mi \
+    --timeout 540s \
+    --allow-unauthenticated
 ```
 
 ### 4. スケジュール実行の設定（オプション）
@@ -161,8 +163,9 @@ gcloud functions deploy echo-me \
 ```bash
 gcloud scheduler jobs create http echo-me-scheduler \
     --schedule="0 * * * *" \
-    --uri="https://REGION-PROJECT_ID.cloudfunctions.net/echo-me" \
-    --http-method=POST
+    --uri="https://echo-me-XXXXX-an.a.run.app" \
+    --http-method=POST \
+    --location=asia-northeast1
 ```
 
 ## Requirements
