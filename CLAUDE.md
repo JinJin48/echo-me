@@ -33,7 +33,21 @@ SAP Community / LinkedIn / X / JSUG / ASUG
 echo-me/
 ├── CLAUDE.md                  # このファイル（Claude Code用コンテキスト）
 ├── src/
-│   └── content_generator.py   # メインスクリプト
+│   ├── main.py                # メイン実行スクリプト
+│   └── modules/
+│       ├── __init__.py
+│       ├── file_reader/       # ファイル読み込みモジュール
+│       │   ├── __init__.py
+│       │   ├── reader.py
+│       │   └── README.md
+│       ├── llm_processor/     # LLM処理モジュール
+│       │   ├── __init__.py
+│       │   ├── processor.py
+│       │   └── README.md
+│       └── content_formatter/ # 出力フォーマットモジュール
+│           ├── __init__.py
+│           ├── formatter.py
+│           └── README.md
 ├── input/                     # 入力ファイル置き場
 ├── output/                    # 出力ファイル置き場
 ├── .env                       # API Key（.gitignore対象）
@@ -42,11 +56,48 @@ echo-me/
 └── README.md
 ```
 
+## Modules
+
+### file_reader
+
+ファイル読み込みを担当するモジュール。
+
+| 関数 | 引数 | 戻り値 | 説明 |
+|------|------|--------|------|
+| `read_file(filepath)` | `filepath: str` | `str` | ファイルからテキストを抽出 |
+| `get_supported_extensions()` | なし | `list[str]` | 対応拡張子リストを返す |
+
+**対応形式:** `.txt`, `.md`, `.docx`, `.pdf`
+
+### llm_processor
+
+Claude APIを使用したコンテンツ生成を担当するモジュール。
+
+| 関数/クラス | 引数 | 戻り値 | 説明 |
+|-------------|------|--------|------|
+| `generate_content(text, content_type)` | `text: str`, `content_type: str` | `str` | コンテンツを生成 |
+| `get_content_types()` | なし | `list[str]` | 利用可能なタイプを返す |
+| `LLMProcessor` | クラス | - | API呼び出しを管理 |
+
+**content_type:** `"blog"`, `"x_post"`, `"linkedin"`
+
+### content_formatter
+
+出力ファイルの生成を担当するモジュール。
+
+| 関数 | 引数 | 戻り値 | 説明 |
+|------|------|--------|------|
+| `save_outputs(blog, x_post, linkedin, output_dir)` | 各コンテンツ文字列 | `OutputPaths` | 3ファイルを一括保存 |
+| `save_single_output(content, output_dir, filename)` | 内容とパス | `str` | 単一ファイルを保存 |
+
 ## File Descriptions
 
 | ファイル | 役割 |
 |----------|------|
-| `src/content_generator.py` | Claude APIを使用してコンテンツを生成するメインスクリプト |
+| `src/main.py` | メイン実行スクリプト（CLI） |
+| `src/modules/file_reader/` | 各種ファイル形式からテキスト抽出 |
+| `src/modules/llm_processor/` | Claude APIを使用したコンテンツ生成 |
+| `src/modules/content_formatter/` | 出力ファイルの生成・保存 |
 | `input/` | Plaud AIの文字起こしやMDファイルを配置 |
 | `output/` | 生成されたblog.md、x_post.txt、linkedin_post.txtを出力 |
 | `.env` | ANTHROPIC_API_KEYを格納（Git管理外） |
@@ -57,6 +108,8 @@ echo-me/
 |------|------|------|
 | A | テキスト/MD | Plaud AIによる文字起こしMTG議事 |
 | B | MD | Google Drive格納のSAP/IT技術系トピック |
+| C | DOCX | Word文書形式のドキュメント |
+| D | PDF | PDF形式のドキュメント |
 
 ## Output Files
 
@@ -93,8 +146,16 @@ echo-me/
 
 ```bash
 # 基本的な使用方法
-python src/content_generator.py input/sample.txt
-python src/content_generator.py input/sample.md
+python src/main.py input/sample.txt
+python src/main.py input/sample.md
+python src/main.py input/document.docx
+python src/main.py input/manual.pdf
+
+# 出力ディレクトリを指定
+python src/main.py input/sample.txt -o custom_output
+
+# タイムスタンプなしで出力
+python src/main.py input/sample.txt --no-timestamp
 
 # 出力は output/ ディレクトリに生成される
 ```
@@ -103,12 +164,12 @@ python src/content_generator.py input/sample.md
 
 ```powershell
 # Windows PowerShell
-Start-Process -NoNewWindow python -ArgumentList "src/content_generator.py", "input/sample.txt"
+Start-Process -NoNewWindow python -ArgumentList "src/main.py", "input/sample.txt"
 ```
 
 ```bash
 # Linux/Mac
-nohup python src/content_generator.py input/sample.txt > output.log 2>&1 &
+nohup python src/main.py input/sample.txt > output.log 2>&1 &
 ```
 
 ## Future Development (Phase 2以降)
