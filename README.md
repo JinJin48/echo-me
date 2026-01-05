@@ -4,7 +4,7 @@
 
 ## Features
 
-- 音声文字起こし（Plaud AI）やMarkdownファイルを入力として受け付け
+- 複数形式の入力ファイルに対応（.txt, .md, .docx, .pdf）
 - Claude APIを使用して3種類のコンテンツを自動生成:
   - **blog.md**: 構造化されたブログ記事
   - **x_post.txt**: X(Twitter)投稿（280文字以内、ハッシュタグ付き）
@@ -35,13 +35,22 @@ cp .env.example .env
 
 ```bash
 # テキストファイルから生成
-python src/content_generator.py input/sample.txt
+python src/main.py input/sample.txt
 
 # Markdownファイルから生成
-python src/content_generator.py input/sample.md
+python src/main.py input/sample.md
+
+# Word文書から生成
+python src/main.py input/document.docx
+
+# PDFから生成（※OCR処理済みのみ）
+python src/main.py input/manual.pdf
 
 # 出力ディレクトリを指定
-python src/content_generator.py input/sample.txt -o my_output
+python src/main.py input/sample.txt -o my_output
+
+# タイムスタンプなしで出力
+python src/main.py input/sample.txt --no-timestamp
 ```
 
 ### バックグラウンド実行（推奨）
@@ -50,13 +59,28 @@ python src/content_generator.py input/sample.txt -o my_output
 
 ```powershell
 # Windows PowerShell
-Start-Process -NoNewWindow python -ArgumentList "src/content_generator.py", "input/sample.txt"
+Start-Process -NoNewWindow python -ArgumentList "src/main.py", "input/sample.txt"
 ```
 
 ```bash
 # Linux/Mac
-nohup python src/content_generator.py input/sample.txt > output.log 2>&1 &
+nohup python src/main.py input/sample.txt > output.log 2>&1 &
 ```
+
+## Supported Input Formats
+
+| 形式 | 拡張子 | 備考 |
+|------|--------|------|
+| プレーンテキスト | .txt | - |
+| Markdown | .md | - |
+| Microsoft Word | .docx | python-docx使用 |
+| PDF | .pdf | OCR処理済みのみ対応 |
+
+### PDF対応の注意事項
+
+- OCR処理済みPDFのみ対応。画像PDFは事前にOCR処理が必要。
+- テキストが抽出できない場合（10文字未満）はエラーとなります。
+- 推奨OCRツール: PDFelement、Adobe Acrobat など
 
 ## Output
 
@@ -76,7 +100,11 @@ output/
 echo-me/
 ├── CLAUDE.md                  # Claude Code用コンテキスト
 ├── src/
-│   └── content_generator.py   # メインスクリプト
+│   ├── main.py                # メイン実行スクリプト
+│   └── modules/
+│       ├── file_reader/       # ファイル読み込みモジュール
+│       ├── llm_processor/     # Claude API呼び出しモジュール
+│       └── content_formatter/ # 出力フォーマットモジュール
 ├── input/                     # 入力ファイル置き場
 ├── output/                    # 出力ファイル置き場
 ├── .env                       # API Key（Git管理外）

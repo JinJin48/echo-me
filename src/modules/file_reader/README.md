@@ -15,6 +15,12 @@
 | `.docx` | Microsoft Word | python-docx |
 | `.pdf` | PDF | PyMuPDF |
 
+### PDF対応の注意事項
+
+- OCR処理済みPDFのみ対応。画像PDFは事前にOCR処理が必要。
+- テキストが抽出できない場合（10文字未満）はエラーとなります。
+- 推奨OCRツール: PDFelement、Adobe Acrobat など
+
 ## 関数一覧
 
 ### `read_file(filepath: str) -> str`

@@ -69,6 +69,11 @@ echo-me/
 
 **対応形式:** `.txt`, `.md`, `.docx`, `.pdf`
 
+**PDF処理仕様:**
+- PyMuPDFでテキスト抽出
+- テキストが10文字未満の場合は`ValueError`を返す（OCR未処理と判断）
+- エラーメッセージ: 「このPDFはOCR処理されていません。PDFelementなどでOCR処理してから再度お試しください。」
+
 ### llm_processor
 
 Claude APIを使用したコンテンツ生成を担当するモジュール。
@@ -109,7 +114,9 @@ Claude APIを使用したコンテンツ生成を担当するモジュール。
 | A | テキスト/MD | Plaud AIによる文字起こしMTG議事 |
 | B | MD | Google Drive格納のSAP/IT技術系トピック |
 | C | DOCX | Word文書形式のドキュメント |
-| D | PDF | PDF形式のドキュメント |
+| D | PDF | PDF形式のドキュメント（※OCR処理済みのみ） |
+
+**PDF注意事項:** OCR処理済みPDFのみ対応。画像PDFはPDFelementなどで事前にOCR処理が必要。
 
 ## Output Files
 

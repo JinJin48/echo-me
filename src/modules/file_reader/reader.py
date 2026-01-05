@@ -87,6 +87,7 @@ def _read_pdf_file(path: Path) -> str:
 
     Raises:
         ImportError: PyMuPDFがインストールされていない場合
+        ValueError: OCR処理されていないPDFの場合
     """
     try:
         import fitz  # PyMuPDF
@@ -103,7 +104,16 @@ def _read_pdf_file(path: Path) -> str:
         text_parts.append(page.get_text())
 
     doc.close()
-    return "\n".join(text_parts)
+    text = "\n".join(text_parts).strip()
+
+    # テキストが空または極端に短い場合はOCR未処理と判断
+    if len(text) < 10:
+        raise ValueError(
+            "このPDFはOCR処理されていません。"
+            "PDFelementなどでOCR処理してから再度お試しください。"
+        )
+
+    return text
 
 
 def get_supported_extensions() -> list[str]:
