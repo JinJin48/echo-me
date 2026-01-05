@@ -11,7 +11,8 @@ from pathlib import Path
 from typing import Optional
 
 from dotenv import load_dotenv
-from google.oauth2 import service_account
+from google.oauth2.credentials import Credentials
+from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload, MediaIoBaseDownload
 
@@ -24,6 +25,17 @@ SUPPORTED_MIME_TYPES = {
     "application/pdf": ".pdf",
 }
 
+# OAuth スコープ
+SCOPES = ["https://www.googleapis.com/auth/drive"]
+
+# 認証情報ファイルのパス（優先順位順）
+# Cloud Run環境
+CLOUD_CREDENTIALS_PATH = Path("/secrets-cred/credentials.json")
+CLOUD_TOKEN_PATH = Path("/secrets-token/token.json")
+# ローカル開発環境
+LOCAL_CREDENTIALS_PATH = Path(__file__).parent.parent.parent / "credentials.json"
+LOCAL_TOKEN_PATH = Path(__file__).parent.parent.parent / "token.json"
+
 
 class GDriveWatcher:
     """Google Driveフォルダを監視するクラス"""
@@ -32,17 +44,16 @@ class GDriveWatcher:
         self,
         input_folder_id: str | None = None,
         output_folder_id: str | None = None,
-        credentials_path: str | None = None,
     ):
         """GDriveWatcherを初期化する
 
         Args:
             input_folder_id: 監視する入力フォルダのID。Noneの場合は環境変数から取得
             output_folder_id: 出力先フォルダのID。Noneの場合は環境変数から取得
-            credentials_path: サービスアカウントの認証情報JSONファイルのパス
 
         Raises:
             ValueError: フォルダIDが設定されていない場合
+            FileNotFoundError: 認証情報ファイルが見つからない場合
         """
         load_dotenv()
 
@@ -61,28 +72,66 @@ class GDriveWatcher:
                 ".envファイルで設定してください。"
             )
 
-        # サービスアカウント認証
-        self.credentials_path = credentials_path or os.getenv(
-            "GOOGLE_APPLICATION_CREDENTIALS"
-        )
+        # 認証情報パスを解決
+        self.credentials_path, self.token_path = self._resolve_credential_paths()
         self.service = self._build_service()
 
-    def _build_service(self):
-        """Google Drive APIサービスを構築する"""
-        if self.credentials_path:
-            credentials = service_account.Credentials.from_service_account_file(
-                self.credentials_path,
-                scopes=["https://www.googleapis.com/auth/drive"],
-            )
+    def _resolve_credential_paths(self) -> tuple[Path, Path]:
+        """認証情報ファイルのパスを解決する
+
+        Cloud Run環境のパスを優先し、なければローカル開発環境のパスを使用する。
+
+        Returns:
+            (credentials_path, token_path) のタプル
+
+        Raises:
+            FileNotFoundError: 認証情報ファイルが見つからない場合
+        """
+        # Cloud Run環境のパスをチェック
+        if CLOUD_CREDENTIALS_PATH.exists():
+            credentials_path = CLOUD_CREDENTIALS_PATH
+        elif LOCAL_CREDENTIALS_PATH.exists():
+            credentials_path = LOCAL_CREDENTIALS_PATH
         else:
-            # Cloud Functions環境ではデフォルト認証を使用
-            from google.auth import default
-
-            credentials, _ = default(
-                scopes=["https://www.googleapis.com/auth/drive"]
+            raise FileNotFoundError(
+                f"credentials.jsonが見つかりません。"
+                f"Cloud Run: {CLOUD_CREDENTIALS_PATH} または "
+                f"ローカル: {LOCAL_CREDENTIALS_PATH} に配置してください。"
             )
 
-        return build("drive", "v3", credentials=credentials)
+        if CLOUD_TOKEN_PATH.exists():
+            token_path = CLOUD_TOKEN_PATH
+        elif LOCAL_TOKEN_PATH.exists():
+            token_path = LOCAL_TOKEN_PATH
+        else:
+            raise FileNotFoundError(
+                f"token.jsonが見つかりません。"
+                f"Cloud Run: {CLOUD_TOKEN_PATH} または "
+                f"ローカル: {LOCAL_TOKEN_PATH} に配置してください。"
+            )
+
+        return credentials_path, token_path
+
+    def _build_service(self):
+        """Google Drive APIサービスを構築する
+
+        OAuth認証を使用してGoogle Drive APIサービスを構築する。
+        トークンが期限切れの場合は自動的に更新する。
+        """
+        creds = Credentials.from_authorized_user_file(str(self.token_path), SCOPES)
+
+        # トークンが期限切れの場合は更新
+        if creds and creds.expired and creds.refresh_token:
+            creds.refresh(Request())
+            # 更新されたトークンを保存（Cloud Run環境では書き込み不可の場合がある）
+            try:
+                with open(self.token_path, "w") as token:
+                    token.write(creds.to_json())
+            except (PermissionError, OSError):
+                # Cloud Run環境などで書き込みできない場合は無視
+                pass
+
+        return build("drive", "v3", credentials=creds)
 
     def list_new_files(self, processed_marker: str = "_processed") -> list[dict]:
         """入力フォルダ内の未処理ファイルを一覧取得する
