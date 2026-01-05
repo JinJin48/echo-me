@@ -6,7 +6,9 @@
       "Bash(git push:*)",
       "Bash(mkdir:*)",
       "Bash(python src/local_test.py:*)",
-      "Bash(rm:*)"
+      "Bash(rm:*)",
+      "Bash(python:*)",
+      "Bash(curl:*)"
     ]
   }
 }
