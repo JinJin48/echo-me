@@ -23,3 +23,6 @@ steps:
 
 images:
   - 'gcr.io/echo-me-483413/echo-me'
+
+options:
+  logging: CLOUD_LOGGING_ONLY
