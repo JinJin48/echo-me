@@ -33,7 +33,8 @@ SAP Community / LinkedIn / X / JSUG / ASUG
 echo-me/
 ├── CLAUDE.md                  # このファイル（Claude Code用コンテキスト）
 ├── src/
-│   ├── main.py                # メイン実行スクリプト
+│   ├── local_test.py          # ローカルテスト用スクリプト（OAuth認証）
+│   ├── cloud_function.py      # Cloud Functions用エントリーポイント
 │   └── modules/
 │       ├── __init__.py
 │       ├── file_reader/       # ファイル読み込みモジュール
@@ -44,12 +45,18 @@ echo-me/
 │       │   ├── __init__.py
 │       │   ├── processor.py
 │       │   └── README.md
-│       └── content_formatter/ # 出力フォーマットモジュール
+│       ├── content_formatter/ # 出力フォーマットモジュール
+│       │   ├── __init__.py
+│       │   ├── formatter.py
+│       │   └── README.md
+│       ├── gdrive_watcher/    # Google Drive監視モジュール
+│       │   ├── __init__.py
+│       │   ├── watcher.py
+│       │   └── README.md
+│       └── notifier/          # 通知モジュール
 │           ├── __init__.py
-│           ├── formatter.py
+│           ├── discord.py
 │           └── README.md
-├── input/                     # 入力ファイル置き場
-├── output/                    # 出力ファイル置き場
 ├── .env                       # API Key（.gitignore対象）
 ├── .gitignore
 ├── requirements.txt
@@ -95,17 +102,52 @@ Claude APIを使用したコンテンツ生成を担当するモジュール。
 | `save_outputs(blog, x_post, linkedin, output_dir)` | 各コンテンツ文字列 | `OutputPaths` | 3ファイルを一括保存 |
 | `save_single_output(content, output_dir, filename)` | 内容とパス | `str` | 単一ファイルを保存 |
 
+### gdrive_watcher
+
+Google Drive APIを使用したフォルダ監視モジュール。
+
+| 関数/クラス | 引数 | 戻り値 | 説明 |
+|-------------|------|--------|------|
+| `GDriveWatcher` | クラス | - | Google Driveフォルダ監視 |
+| `list_new_files()` | なし | `list[dict]` | 未処理ファイル一覧 |
+| `download_file(file_id, local_path)` | ID, パス | `str` | ファイルダウンロード |
+| `upload_file(local_path, filename)` | パス, ファイル名 | `str` | ファイルアップロード |
+| `mark_as_processed(file_id, name)` | ID, 名前 | なし | 処理済みマーク |
+
+**環境変数:**
+- `GDRIVE_INPUT_FOLDER_ID`: 入力フォルダID
+- `GDRIVE_OUTPUT_FOLDER_ID`: 出力フォルダID
+
+### notifier
+
+Discord Webhookを使用したエラー通知モジュール。
+
+| 関数/クラス | 引数 | 戻り値 | 説明 |
+|-------------|------|--------|------|
+| `DiscordNotifier` | クラス | - | Discord通知管理 |
+| `send_error(error, context, file_name)` | 例外, コンテキスト, ファイル名 | `bool` | エラー通知送信 |
+| `notify_error(error, context, file_name)` | 同上 | `bool` | 関数インターフェース |
+
+**環境変数:**
+- `DISCORD_WEBHOOK_URL`: Discord WebhookのURL
+
+**エラー通知仕様:**
+- エラー発生時のみ通知（成功時は通知なし）
+- エラータイプ、メッセージ、スタックトレースを含む
+- Webhook未設定時はログ出力のみ（エラーにはならない）
+
 ## File Descriptions
 
 | ファイル | 役割 |
 |----------|------|
-| `src/main.py` | メイン実行スクリプト（CLI） |
+| `src/local_test.py` | ローカルテスト用スクリプト（OAuth認証） |
+| `src/cloud_function.py` | Cloud Functions用エントリーポイント |
 | `src/modules/file_reader/` | 各種ファイル形式からテキスト抽出 |
 | `src/modules/llm_processor/` | Claude APIを使用したコンテンツ生成 |
 | `src/modules/content_formatter/` | 出力ファイルの生成・保存 |
-| `input/` | Plaud AIの文字起こしやMDファイルを配置 |
-| `output/` | 生成されたblog.md、x_post.txt、linkedin_post.txtを出力 |
-| `.env` | ANTHROPIC_API_KEYを格納（Git管理外） |
+| `src/modules/gdrive_watcher/` | Google Drive監視・ファイル取得 |
+| `src/modules/notifier/` | Discord Webhook通知 |
+| `.env` | 環境変数（Git管理外） |
 
 ## Input File Types
 
@@ -138,59 +180,65 @@ Claude APIを使用したコンテンツ生成を担当するモジュール。
 ### 環境変数
 - APIキーは必ず`.env`ファイルで管理
 - `.env`ファイルは絶対にコミットしない
+- フォルダIDやWebhook URLもハードコーディング禁止
+
+### セキュリティ注意事項
+- **`credentials.json`と`token.json`はGit管理禁止**
+- これらは機密情報を含むため、**絶対にGitHubに公開しない**
+- `credentials.json`: Google Cloud OAuth クライアント認証情報
+- `token.json`: OAuth認証後に生成されるアクセストークン
+- これらのファイルは`.gitignore`に登録済み
+- 万が一コミットした場合は、Google Cloud Consoleで認証情報を無効化し、新規発行すること
+- 本番環境ではCloud FunctionsのSecret Managerを使用して認証情報を管理する
+
+**必須環境変数:**
+| 変数名 | 説明 |
+|--------|------|
+| `ANTHROPIC_API_KEY` | Claude APIキー |
+| `GDRIVE_INPUT_FOLDER_ID` | Google Drive入力フォルダID |
+| `GDRIVE_OUTPUT_FOLDER_ID` | Google Drive出力フォルダID |
+| `DISCORD_WEBHOOK_URL` | Discord通知用Webhook URL（オプション） |
 
 ### 使用API
 - Anthropic Claude API
 - モデル: `claude-sonnet-4-20250514`
 
-### 実行ルール
-- 長時間処理はバックグラウンド実行を基本とする
-- 実行ログはoutput.logに出力
-
 ## Usage
 
-### 通常実行
+### ローカルテスト実行
 
 ```bash
-# 基本的な使用方法
-python src/main.py input/sample.txt
-python src/main.py input/sample.md
-python src/main.py input/document.docx
-python src/main.py input/manual.pdf
-
-# 出力ディレクトリを指定
-python src/main.py input/sample.txt -o custom_output
-
-# タイムスタンプなしで出力
-python src/main.py input/sample.txt --no-timestamp
-
-# 出力は output/ ディレクトリに生成される
+# Google Driveの入力フォルダからファイルを取得して処理
+python src/local_test.py
 ```
 
-### バックグラウンド実行（推奨）
+初回実行時はOAuth認証のためブラウザが開きます。
 
-```powershell
-# Windows PowerShell
-Start-Process -NoNewWindow python -ArgumentList "src/main.py", "input/sample.txt"
-```
+### 処理フロー
 
-```bash
-# Linux/Mac
-nohup python src/main.py input/sample.txt > output.log 2>&1 &
-```
+1. Google Driveの入力フォルダから未処理ファイルを取得
+2. Claude APIでコンテンツ生成（ブログ、X、LinkedIn）
+3. 生成結果をGoogle Driveの出力フォルダにアップロード
+4. 処理済みファイルを`_processed`でリネーム
 
-## Future Development (Phase 2以降)
+## Development Phases
 
-### Phase 2: 自動化強化
-- Google Drive連携によるファイル自動取得
-- Notion API連携によるレビューワークフロー
+### Phase 1: ローカル実行 ✅
+- 複数形式対応（.txt, .md, .docx, .pdf）
+- Claude APIによるコンテンツ生成
 
-### Phase 3: 配信自動化
+### Phase 2: 自動化強化 ✅
+- Google Drive連携によるフォルダ監視・ファイル自動取得
+- Cloud Functionsによる自動処理
+- Discord Webhookによるエラー通知
+
+### Phase 3: 配信自動化（予定）
 - X API連携による自動投稿
 - LinkedIn API連携による自動投稿
 - SAP Community連携
+- Notion API連携によるレビューワークフロー
 
-### Phase 4: AI強化
+### Phase 4: AI強化（予定）
 - コンテンツの品質スコアリング
 - トレンド分析による最適投稿時間提案
 - マルチ言語対応（日英）
