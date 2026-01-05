@@ -8,34 +8,83 @@ echo-meは、音声ファイルやMarkdownファイルからブログ・SNS投�
 - 複数のプラットフォーム（ブログ、X、LinkedIn）向けに最適化された投稿を生成
 - SAP/IT技術系のコンテンツを発信するワークフローを自動化
 
-## System Flow
+## Current Status
+
+### Phase 1: ローカル実行 ✅ 完了
+- 複数形式対応（.txt, .md, .docx, .pdf）
+- Claude APIによるコンテンツ生成
+
+### Phase 2: 自動化強化 ✅ 完了
+- Google Drive連携によるフォルダ監視・ファイル自動取得
+- Cloud Run + Cloud Schedulerによる定期自動処理（毎時実行）
+- Discord Webhookによるエラー通知
+- Secret Managerによる認証情報管理
+
+### Phase 3: 配信自動化（予定）
+- [ ] Notion API連携によるレビューワークフロー
+- [ ] LinkedIn API連携による自動投稿
+- [ ] X API連携による自動投稿
+- [ ] SAP Community連携
+
+### Phase 4: AI強化（予定）
+- [ ] コンテンツの品質スコアリング
+- [ ] トレンド分析による最適投稿時間提案
+- [ ] マルチ言語対応（日英）
+
+## System Architecture
 
 ```
-【INPUT】
-音声(Plaud) / MDファイル
-       ↓
-Google Drive → NotebookLM（手動）
-       ↓
-【PROCESSING】
-Claude API（ブログ/X/LinkedIn形式生成）
-       ↓
-【REVIEW】
-Notion（レビュー・承認）
-       ↓
-【OUTPUT】
-SAP Community / LinkedIn / X / JSUG / ASUG
-+ Notion公式（ポートフォリオ）
+┌─────────────────┐     ┌──────────────────┐     ┌─────────────────┐
+│  Google Drive   │     │    Cloud Run     │     │  Google Drive   │
+│  (Input Folder) │────▶│   (echo-me)      │────▶│ (Output Folder) │
+└─────────────────┘     └──────────────────┘     └─────────────────┘
+                               │
+                               │ Claude API
+                               ▼
+                        ┌──────────────────┐
+                        │   Anthropic API  │
+                        └──────────────────┘
+
+┌──────────────────────────────────────────────────────────────────┐
+│                      Cloud Scheduler                              │
+│                   (毎時実行: 0 * * * *)                           │
+└──────────────────────────────────────────────────────────────────┘
 ```
+
+## Technical Decisions
+
+### デプロイ方式: Dockerfile（Buildpacksから変更）
+- **理由**: Buildpacksでは依存関係のインストールに問題が発生
+- **採用**: `python:3.11-slim`ベースのDockerfile
+- `functions-framework`を使用してHTTPハンドラーを起動
+
+### 認証方式: OAuth + Secret Manager
+- **ローカル開発**: `src/credentials.json`、`src/token.json`
+- **Cloud Run**: Secret Managerからマウント
+  - `/secrets-cred/credentials.json`
+  - `/secrets-token/token.json`
+- サービスアカウントではなくOAuth認証を使用（個人のGoogle Driveアクセスのため）
+
+### 月額コスト: 約1,000〜1,200円
+| サービス | 月額目安 |
+|----------|----------|
+| Cloud Run | 〜500円 |
+| Secret Manager | 〜100円 |
+| Anthropic API | 〜500円 |
 
 ## File Structure
 
 ```
 echo-me/
 ├── main.py                    # Cloud Run用エントリーポイント
+├── Dockerfile                 # Cloud Run用Dockerイメージ定義
+├── Procfile                   # Cloud Run用プロセス定義
 ├── CLAUDE.md                  # このファイル（Claude Code用コンテキスト）
 ├── src/
 │   ├── local_test.py          # ローカルテスト用スクリプト（OAuth認証）
-│   ├── cloud_function.py      # Cloud Run/Functions用コア処理
+│   ├── cloud_function.py      # Cloud Run用コア処理
+│   ├── credentials.json       # OAuth認証情報（Git管理外）
+│   ├── token.json             # OAuthトークン（Git管理外）
 │   └── modules/
 │       ├── __init__.py
 │       ├── file_reader/       # ファイル読み込みモジュール
@@ -59,6 +108,7 @@ echo-me/
 │           ├── discord.py
 │           └── README.md
 ├── .env                       # API Key（.gitignore対象）
+├── .env.example               # 環境変数のサンプル
 ├── .gitignore
 ├── requirements.txt
 └── README.md
@@ -115,6 +165,10 @@ Google Drive APIを使用したフォルダ監視モジュール。
 | `upload_file(local_path, filename)` | パス, ファイル名 | `str` | ファイルアップロード |
 | `mark_as_processed(file_id, name)` | ID, 名前 | なし | 処理済みマーク |
 
+**認証情報パス（優先順位順）:**
+1. Cloud Run: `/secrets-cred/credentials.json`, `/secrets-token/token.json`
+2. ローカル: `src/credentials.json`, `src/token.json`
+
 **環境変数:**
 - `GDRIVE_INPUT_FOLDER_ID`: 入力フォルダID
 - `GDRIVE_OUTPUT_FOLDER_ID`: 出力フォルダID
@@ -141,9 +195,11 @@ Discord Webhookを使用したエラー通知モジュール。
 
 | ファイル | 役割 |
 |----------|------|
-| `main.py` | Cloud Run用エントリーポイント（Buildpacks用） |
+| `main.py` | Cloud Run用エントリーポイント |
+| `Dockerfile` | Cloud Run用Dockerイメージ定義 |
+| `Procfile` | Cloud Run用プロセス定義（functions-framework起動） |
 | `src/local_test.py` | ローカルテスト用スクリプト（OAuth認証） |
-| `src/cloud_function.py` | Cloud Run/Functions用コア処理 |
+| `src/cloud_function.py` | Cloud Run用コア処理 |
 | `src/modules/file_reader/` | 各種ファイル形式からテキスト抽出 |
 | `src/modules/llm_processor/` | Claude APIを使用したコンテンツ生成 |
 | `src/modules/content_formatter/` | 出力ファイルの生成・保存 |
@@ -191,7 +247,7 @@ Discord Webhookを使用したエラー通知モジュール。
 - `token.json`: OAuth認証後に生成されるアクセストークン
 - これらのファイルは`.gitignore`に登録済み
 - 万が一コミットした場合は、Google Cloud Consoleで認証情報を無効化し、新規発行すること
-- 本番環境ではCloud FunctionsのSecret Managerを使用して認証情報を管理する
+- 本番環境ではSecret Managerを使用して認証情報を管理する
 
 **必須環境変数:**
 | 変数名 | 説明 |
@@ -216,31 +272,26 @@ python src/local_test.py
 
 初回実行時はOAuth認証のためブラウザが開きます。
 
+### Cloud Runデプロイ
+
+```bash
+# Dockerイメージをビルド
+gcloud builds submit --tag gcr.io/PROJECT_ID/echo-me
+
+# Cloud Runにデプロイ
+gcloud run deploy echo-me \
+    --image gcr.io/PROJECT_ID/echo-me \
+    --region asia-northeast1 \
+    --memory 512Mi \
+    --timeout 540s \
+    --set-env-vars "GDRIVE_INPUT_FOLDER_ID=xxx,GDRIVE_OUTPUT_FOLDER_ID=xxx" \
+    --set-secrets "ANTHROPIC_API_KEY=anthropic-api-key:latest,DISCORD_WEBHOOK_URL=discord-webhook-url:latest,/secrets-cred/credentials.json=gdrive-credentials:latest,/secrets-token/token.json=gdrive-token:latest" \
+    --no-allow-unauthenticated
+```
+
 ### 処理フロー
 
 1. Google Driveの入力フォルダから未処理ファイルを取得
 2. Claude APIでコンテンツ生成（ブログ、X、LinkedIn）
 3. 生成結果をGoogle Driveの出力フォルダにアップロード
 4. 処理済みファイルを`_processed`でリネーム
-
-## Development Phases
-
-### Phase 1: ローカル実行 ✅
-- 複数形式対応（.txt, .md, .docx, .pdf）
-- Claude APIによるコンテンツ生成
-
-### Phase 2: 自動化強化 ✅
-- Google Drive連携によるフォルダ監視・ファイル自動取得
-- Cloud Run/Functionsによる自動処理
-- Discord Webhookによるエラー通知
-
-### Phase 3: 配信自動化（予定）
-- X API連携による自動投稿
-- LinkedIn API連携による自動投稿
-- SAP Community連携
-- Notion API連携によるレビューワークフロー
-
-### Phase 4: AI強化（予定）
-- コンテンツの品質スコアリング
-- トレンド分析による最適投稿時間提案
-- マルチ言語対応（日英）

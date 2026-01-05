@@ -6,13 +6,21 @@ Google Drive APIを使用してフォルダを監視し、ファイルを取得�
 
 このモジュールは、指定されたGoogle Driveフォルダを監視し、新規ファイルを検出・ダウンロードする機能を提供します。処理済みファイルはリネームによりマーキングされ、重複処理を防止します。
 
+## 認証方式
+
+OAuth 2.0認証を使用します。認証情報ファイルは以下の優先順位で検索されます：
+
+| 環境 | credentials.json | token.json |
+|------|------------------|------------|
+| Cloud Run | `/secrets-cred/credentials.json` | `/secrets-token/token.json` |
+| ローカル | `src/credentials.json` | `src/token.json` |
+
 ## 環境変数
 
 | 変数名 | 説明 |
 |--------|------|
 | `GDRIVE_INPUT_FOLDER_ID` | 監視対象の入力フォルダID |
 | `GDRIVE_OUTPUT_FOLDER_ID` | 生成ファイルのアップロード先フォルダID |
-| `GOOGLE_APPLICATION_CREDENTIALS` | サービスアカウントJSONファイルのパス（ローカル実行時） |
 
 ## 対応ファイル形式
 
@@ -29,12 +37,15 @@ Google Drive APIを使用してフォルダを監視し、ファイルを取得�
 
 Google Driveフォルダを監視するクラス。
 
-#### `__init__(self, input_folder_id, output_folder_id, credentials_path)`
+#### `__init__(self, input_folder_id, output_folder_id)`
 
 **引数:**
-- `input_folder_id` (str | None): 監視する入力フォルダのID
-- `output_folder_id` (str | None): 出力先フォルダのID
-- `credentials_path` (str | None): サービスアカウント認証情報のパス
+- `input_folder_id` (str | None): 監視する入力フォルダのID（省略時は環境変数から取得）
+- `output_folder_id` (str | None): 出力先フォルダのID（省略時は環境変数から取得）
+
+**例外:**
+- `ValueError`: フォルダIDが設定されていない場合
+- `FileNotFoundError`: 認証情報ファイルが見つからない場合
 
 #### `list_new_files(self, processed_marker="_processed") -> list[dict]`
 
@@ -93,30 +104,28 @@ for file in new_files:
     watcher.mark_as_processed(file['id'], file['name'])
 ```
 
-## GCP設定手順
+## セットアップ手順
 
-### 1. サービスアカウントの作成
+### ローカル開発
 
-```bash
-# GCPプロジェクトでサービスアカウントを作成
-gcloud iam service-accounts create echo-me-sa \
-    --display-name="echo-me Service Account"
+1. Google Cloud ConsoleでOAuthクライアントIDを作成（デスクトップアプリ）
+2. `credentials.json`をダウンロードして`src/`に配置
+3. `python src/local_test.py`を実行してブラウザ認証
+4. 認証後`src/token.json`が自動生成される
 
-# キーを生成
-gcloud iam service-accounts keys create credentials.json \
-    --iam-account=echo-me-sa@PROJECT_ID.iam.gserviceaccount.com
-```
+### Cloud Run
 
-### 2. Google Drive APIの有効化
+1. Secret Managerに認証情報を登録：
+   ```bash
+   gcloud secrets create gdrive-credentials --data-file=src/credentials.json
+   gcloud secrets create gdrive-token --data-file=src/token.json
+   ```
 
-1. GCPコンソールで「APIとサービス」→「ライブラリ」
-2. 「Google Drive API」を検索して有効化
-
-### 3. フォルダの共有設定
-
-1. Google Driveで入力/出力フォルダを作成
-2. サービスアカウントのメールアドレスを編集者として共有
-3. フォルダIDをURLから取得（`https://drive.google.com/drive/folders/FOLDER_ID`）
+2. Cloud Runデプロイ時にシークレットをマウント：
+   ```bash
+   gcloud run deploy echo-me \
+       --set-secrets "/secrets-cred/credentials.json=gdrive-credentials:latest,/secrets-token/token.json=gdrive-token:latest"
+   ```
 
 ## 依存ライブラリ
 

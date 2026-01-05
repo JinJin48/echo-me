@@ -2,6 +2,26 @@
 
 音声/MDファイルからブログ・SNS投稿を自動生成するシステム
 
+## System Architecture
+
+```
+┌─────────────────┐     ┌──────────────────┐     ┌─────────────────┐
+│  Google Drive   │     │    Cloud Run     │     │  Google Drive   │
+│  (Input Folder) │────▶│   (echo-me)      │────▶│ (Output Folder) │
+└─────────────────┘     └──────────────────┘     └─────────────────┘
+                               │
+                               │ Claude API
+                               ▼
+                        ┌──────────────────┐
+                        │   Anthropic API  │
+                        └──────────────────┘
+
+┌──────────────────────────────────────────────────────────────────┐
+│                      Cloud Scheduler                              │
+│                   (毎時実行: 0 * * * *)                           │
+└──────────────────────────────────────────────────────────────────┘
+```
+
 ## Features
 
 - Google Driveフォルダの自動監視
@@ -10,8 +30,20 @@
   - **blog.md**: 構造化されたブログ記事
   - **x_post.txt**: X(Twitter)投稿（280文字以内、ハッシュタグ付き）
   - **linkedin_post.txt**: LinkedIn投稿
-- Cloud Run/Functionsによる自動処理
+- Cloud Run + Cloud Schedulerによる定期自動処理
 - エラー時のDiscord通知
+
+## Cost Estimate
+
+月額コスト: 約1,000〜1,200円
+
+| サービス | 詳細 | 月額目安 |
+|----------|------|----------|
+| Cloud Run | 毎時実行、512MB、最大9分 | 〜500円 |
+| Cloud Scheduler | 1ジョブ | 無料枠内 |
+| Secret Manager | 4シークレット | 〜100円 |
+| Anthropic API | Claude Sonnet、ファイル数による | 〜500円 |
+| **合計** | | **約1,000〜1,200円** |
 
 ## Installation
 
@@ -32,11 +64,17 @@ cp .env.example .env
 # .envファイルを編集してAPIキーとフォルダIDを設定
 ```
 
-## Usage
+## Local Development
+
+### OAuth認証の準備
+
+1. [Google Cloud Console](https://console.cloud.google.com/)でプロジェクトを作成
+2. Google Drive APIを有効化
+3. OAuth同意画面を設定（外部、テストユーザーに自分を追加）
+4. 認証情報 → OAuthクライアントIDを作成（デスクトップアプリ）
+5. `credentials.json`をダウンロードして`src/`に配置
 
 ### ローカルテスト実行
-
-Google Driveの入力フォルダからファイルを取得し、処理結果を出力フォルダにアップロードします。
 
 ```bash
 python src/local_test.py
@@ -44,12 +82,81 @@ python src/local_test.py
 
 初回実行時はOAuth認証のためブラウザが開きます。認証後は`token.json`が保存され、次回以降は自動的に認証されます。
 
-### 処理フロー
+## Cloud Run Deployment
 
-1. Google Driveの入力フォルダから未処理ファイルを取得
-2. Claude APIでコンテンツ生成（ブログ、X、LinkedIn）
-3. 生成結果をGoogle Driveの出力フォルダにアップロード
-4. 処理済みファイルを`_processed`でリネーム
+### 1. GCPプロジェクトの設定
+
+```bash
+# プロジェクトを設定
+gcloud config set project YOUR_PROJECT_ID
+
+# 必要なAPIを有効化
+gcloud services enable drive.googleapis.com
+gcloud services enable run.googleapis.com
+gcloud services enable cloudbuild.googleapis.com
+gcloud services enable cloudscheduler.googleapis.com
+gcloud services enable secretmanager.googleapis.com
+```
+
+### 2. Secret Managerに認証情報を登録
+
+```bash
+# OAuth credentials.jsonを登録
+gcloud secrets create gdrive-credentials \
+    --data-file=src/credentials.json
+
+# OAuth token.jsonを登録（ローカルで認証後）
+gcloud secrets create gdrive-token \
+    --data-file=src/token.json
+
+# 環境変数を登録
+echo -n "your_anthropic_api_key" | gcloud secrets create anthropic-api-key --data-file=-
+echo -n "your_discord_webhook_url" | gcloud secrets create discord-webhook-url --data-file=-
+```
+
+### 3. Dockerイメージをビルド・デプロイ
+
+```bash
+# Cloud Buildでイメージをビルド
+gcloud builds submit --tag gcr.io/YOUR_PROJECT_ID/echo-me
+
+# Cloud Runにデプロイ
+gcloud run deploy echo-me \
+    --image gcr.io/YOUR_PROJECT_ID/echo-me \
+    --region asia-northeast1 \
+    --memory 512Mi \
+    --timeout 540s \
+    --set-env-vars "GDRIVE_INPUT_FOLDER_ID=YOUR_INPUT_FOLDER_ID,GDRIVE_OUTPUT_FOLDER_ID=YOUR_OUTPUT_FOLDER_ID" \
+    --set-secrets "ANTHROPIC_API_KEY=anthropic-api-key:latest,DISCORD_WEBHOOK_URL=discord-webhook-url:latest,/secrets-cred/credentials.json=gdrive-credentials:latest,/secrets-token/token.json=gdrive-token:latest" \
+    --no-allow-unauthenticated
+```
+
+### 4. Cloud Schedulerの設定
+
+```bash
+# サービスアカウントにCloud Run起動権限を付与
+gcloud run services add-iam-policy-binding echo-me \
+    --region asia-northeast1 \
+    --member="serviceAccount:YOUR_PROJECT_NUMBER-compute@developer.gserviceaccount.com" \
+    --role="roles/run.invoker"
+
+# スケジューラージョブを作成（毎時実行）
+gcloud scheduler jobs create http echo-me-scheduler \
+    --schedule="0 * * * *" \
+    --uri="https://echo-me-XXXXX-an.a.run.app" \
+    --http-method=POST \
+    --location=asia-northeast1 \
+    --oidc-service-account-email=YOUR_PROJECT_NUMBER-compute@developer.gserviceaccount.com
+```
+
+## Environment Variables
+
+| 変数名 | 説明 | 必須 |
+|--------|------|------|
+| `ANTHROPIC_API_KEY` | Claude APIキー | ○ |
+| `GDRIVE_INPUT_FOLDER_ID` | Google Drive入力フォルダID | ○ |
+| `GDRIVE_OUTPUT_FOLDER_ID` | Google Drive出力フォルダID | ○ |
+| `DISCORD_WEBHOOK_URL` | Discord通知用Webhook URL | - |
 
 ## Supported Input Formats
 
@@ -71,10 +178,12 @@ python src/local_test.py
 ```
 echo-me/
 ├── main.py                    # Cloud Run用エントリーポイント
+├── Dockerfile                 # Cloud Run用Dockerイメージ定義
+├── Procfile                   # Cloud Run用プロセス定義
 ├── CLAUDE.md                  # Claude Code用コンテキスト
 ├── src/
 │   ├── local_test.py          # ローカルテスト用スクリプト
-│   ├── cloud_function.py      # Cloud Run/Functions用コア処理
+│   ├── cloud_function.py      # Cloud Run用コア処理
 │   └── modules/
 │       ├── file_reader/       # ファイル読み込みモジュール
 │       ├── llm_processor/     # Claude API呼び出しモジュール
@@ -88,85 +197,11 @@ echo-me/
 └── README.md
 ```
 
-## Setup
+## Security Notes
 
-### 1. Google Cloud Consoleでの設定
-
-1. [Google Cloud Console](https://console.cloud.google.com/)でプロジェクトを作成
-2. Google Drive APIを有効化
-3. OAuth同意画面を設定（外部、テストユーザーに自分を追加）
-4. 認証情報 → OAuthクライアントIDを作成（デスクトップアプリ）
-5. `credentials.json`をダウンロードして`src/`に配置
-
-### 2. Google Driveフォルダの設定
-
-1. Google Driveで入力/出力フォルダを作成
-2. フォルダURLからIDを取得（`https://drive.google.com/drive/folders/FOLDER_ID`）
-3. `.env`にフォルダIDを設定
-
-### 3. 環境変数の設定
-
-```bash
-# .envファイル
-ANTHROPIC_API_KEY=your_api_key
-GDRIVE_INPUT_FOLDER_ID=your_input_folder_id
-GDRIVE_OUTPUT_FOLDER_ID=your_output_folder_id
-DISCORD_WEBHOOK_URL=your_webhook_url  # オプション
-```
-
-> **セキュリティ注意**
-> - `credentials.json`および`token.json`は**絶対にGitHubにプッシュしないでください**
-> - これらのファイルは`.gitignore`に登録されています
-
-## Cloud Run デプロイ
-
-### 1. GCPプロジェクトの設定
-
-```bash
-# GCPプロジェクトを作成・選択
-gcloud projects create echo-me-project
-gcloud config set project echo-me-project
-
-# 必要なAPIを有効化
-gcloud services enable drive.googleapis.com
-gcloud services enable run.googleapis.com
-gcloud services enable cloudbuild.googleapis.com
-gcloud services enable cloudscheduler.googleapis.com
-```
-
-### 2. サービスアカウントの作成
-
-```bash
-# サービスアカウントを作成
-gcloud iam service-accounts create echo-me-sa \
-    --display-name="echo-me Service Account"
-
-# Google Driveフォルダをサービスアカウントに共有
-# echo-me-sa@echo-me-project.iam.gserviceaccount.com
-```
-
-### 3. Cloud Runへのデプロイ
-
-```bash
-# ソースコードから直接デプロイ（Buildpacks使用）
-gcloud run deploy echo-me \
-    --source . \
-    --region asia-northeast1 \
-    --set-env-vars ANTHROPIC_API_KEY=xxx,GDRIVE_INPUT_FOLDER_ID=xxx,GDRIVE_OUTPUT_FOLDER_ID=xxx,DISCORD_WEBHOOK_URL=xxx \
-    --memory 512Mi \
-    --timeout 540s \
-    --allow-unauthenticated
-```
-
-### 4. スケジュール実行の設定（オプション）
-
-```bash
-gcloud scheduler jobs create http echo-me-scheduler \
-    --schedule="0 * * * *" \
-    --uri="https://echo-me-XXXXX-an.a.run.app" \
-    --http-method=POST \
-    --location=asia-northeast1
-```
+- `credentials.json`および`token.json`は**絶対にGitHubにプッシュしないでください**
+- これらのファイルは`.gitignore`に登録されています
+- 本番環境ではSecret Managerを使用して認証情報を管理
 
 ## Requirements
 
