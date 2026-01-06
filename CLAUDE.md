@@ -16,8 +16,8 @@ echo-meは、音声ファイルやMarkdownファイルからブログ・SNS投�
 
 ### Phase 2: 自動化強化 ✅ 完了
 - Google Drive連携によるフォルダ監視・ファイル自動取得
-- Cloud Run + Cloud Schedulerによる定期自動処理（毎時実行）
-- Discord Webhookによるエラー通知
+- Cloud Run + Cloud Schedulerによる定期自動処理（15分ごと）
+- Discord Webhookによる通知（生成完了、エラー）
 - Secret Managerによる認証情報管理
 - Cloud Build CI/CD（mainブランチへのpushで自動デプロイ）
 
@@ -36,24 +36,67 @@ echo-meは、音声ファイルやMarkdownファイルからブログ・SNS投�
 - [ ] トレンド分析による最適投稿時間提案
 - [ ] マルチ言語対応（日英）
 
-## System Architecture
+## System Flow
 
 ```
-┌─────────────────┐     ┌──────────────────┐     ┌─────────────────┐
-│  Google Drive   │     │    Cloud Run     │     │  Google Drive   │
-│  (Input Folder) │────▶│   (echo-me)      │────▶│ (Output Folder) │
-└─────────────────┘     └──────────────────┘     └─────────────────┘
-                               │
-                               │ Claude API
-                               ▼
-                        ┌──────────────────┐
-                        │   Anthropic API  │
-                        └──────────────────┘
+【INPUT】
+┌──────────────────────┐
+│    Google Drive      │
+│   100. Input/        │
+│  (.md/.txt/.pdf)     │
+└──────────┬───────────┘
+           │
+           ↓
+【TRIGGER】
+┌──────────────────────┐
+│   Cloud Scheduler    │
+│     (15分ごと)        │
+└──────────┬───────────┘
+           │
+           ↓
+【PROCESSING】
+┌─────────────────────────────────────────┐
+│              Cloud Run                  │
+│  1. Google Driveから取得                 │
+│  2. Claude APIで加工                     │
+│  3. 3種類のコンテンツ生成                 │
+│     - blog.md / linkedin.txt / x_post.txt│
+└──────────┬──────────────────────────────┘
+           │
+           ↓
+【OUTPUT】
+┌──────────────────────┐
+│    Google Drive      │
+│ 200. Awaiting review │
+└──────────┬───────────┘
+           │
+           ↓
+【REVIEW - 人による承認】
+┌─────────────────────────────────────────┐
+│  承認フォルダへ移動                       │
+│  - 300. Approved/Notion                 │
+│  - 300. Approved/LinkedIn               │
+│  - 300. Approved/X                      │
+└──────────┬──────────────────────────────┘
+           │
+           ↓
+【PUBLISH】
+┌─────────────┬─────────────┬─────────────┐
+│   Notion    │  LinkedIn   │      X      │
+│  自動投稿 ✅ │  手動投稿    │   手動投稿   │
+└─────────────┴─────────────┴─────────────┘
 
-┌──────────────────────────────────────────────────────────────────┐
-│                      Cloud Scheduler                              │
-│                   (毎時実行: 0 * * * *)                           │
-└──────────────────────────────────────────────────────────────────┘
+【投稿後】
+┌──────────────────────┐
+│ 400. Posted/Notion   │
+└──────────────────────┘
+
+【通知】
+┌──────────────────────┐
+│    Discord通知        │
+│  - 生成完了           │
+│  - Notion投稿結果     │
+└──────────────────────┘
 ```
 
 ## Technical Decisions
@@ -132,14 +175,16 @@ echo-me/
 
 ```
 Google Drive/
-├── 100. Input/                # 入力フォルダ（GDRIVE_INPUT_FOLDER_ID）
-│   └── *.md, *.txt, etc.      # 未処理ファイル → 処理後 _processed_ プレフィックス付与
-├── 200. Output/               # 出力フォルダ（GDRIVE_OUTPUT_FOLDER_ID）
-│   └── *_blog.md, *_x_post.txt, *_linkedin.txt
-├── 300. Approved/             # 承認済みフォルダ（GDRIVE_APPROVED_FOLDER_ID）
-│   └── *.md, *.txt            # レビュー後、Notion投稿待ちファイル
-└── 400. Posted -> Notion/     # Notion投稿済みフォルダ（GDRIVE_POSTED_FOLDER_ID）
-    └── *.md, *.txt            # Notion投稿完了後に移動
+├── 100. Input/                    # 入力フォルダ（GDRIVE_INPUT_FOLDER_ID）
+│   └── *.md, *.txt, etc.          # 未処理ファイル → 処理後 _processed_ プレフィックス付与
+├── 200. Awaiting review/          # 出力フォルダ（GDRIVE_OUTPUT_FOLDER_ID）
+│   └── *_blog.md, *_linkedin.txt, *_x_post.txt
+├── 300. Approved/                 # 承認済みフォルダ
+│   ├── Notion/                    # Notion投稿待ち（GDRIVE_APPROVED_FOLDER_ID）→ 自動投稿
+│   ├── LinkedIn/                  # LinkedIn投稿待ち → 手動投稿
+│   └── X/                         # X投稿待ち → 手動投稿
+└── 400. Posted/                   # 投稿済みフォルダ
+    └── Notion/                    # Notion投稿完了（GDRIVE_POSTED_FOLDER_ID）
 ```
 
 ## Modules
