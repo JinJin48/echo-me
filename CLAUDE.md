@@ -435,3 +435,7 @@ def get_secret(secret_id, project_id):
     response = client.access_secret_version(request={"name": name})
     return response.payload.data.decode("UTF-8")
 ```
+
+### セキュリティ方針（補足）
+- 不要なファイルは積極的に削除
+- 「念のため残す」より「最小構成」を優先
