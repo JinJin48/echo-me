@@ -8,12 +8,12 @@ Google Drive APIを使用してフォルダを監視し、ファイルを取得�
 
 ## 認証方式
 
-OAuth 2.0認証を使用します。認証情報ファイルは以下の優先順位で検索されます：
+OAuth 2.0認証を使用します。認証情報はSecret Managerで管理され、Cloud Runにマウントされます：
 
-| 環境 | credentials.json | token.json |
-|------|------------------|------------|
-| Cloud Run | `/secrets-cred/credentials.json` | `/secrets-token/token.json` |
-| ローカル | `src/credentials.json` | `src/token.json` |
+| ファイル | マウントパス |
+|----------|--------------|
+| credentials.json | `/secrets-cred/credentials.json` |
+| token.json | `/secrets-token/token.json` |
 
 ## 環境変数
 
@@ -106,19 +106,10 @@ for file in new_files:
 
 ## セットアップ手順
 
-### ローカル開発
-
-1. Google Cloud ConsoleでOAuthクライアントIDを作成（デスクトップアプリ）
-2. `credentials.json`をダウンロードして`src/`に配置
-3. `python src/local_test.py`を実行してブラウザ認証
-4. 認証後`src/token.json`が自動生成される
-
-### Cloud Run
-
 1. Secret Managerに認証情報を登録：
    ```bash
-   gcloud secrets create gdrive-credentials --data-file=src/credentials.json
-   gcloud secrets create gdrive-token --data-file=src/token.json
+   gcloud secrets create gdrive-credentials --data-file=credentials.json
+   gcloud secrets create gdrive-token --data-file=token.json
    ```
 
 2. Cloud Runデプロイ時にシークレットをマウント：
@@ -131,7 +122,3 @@ for file in new_files:
 
 - `google-api-python-client` - Google Drive API クライアント
 - `google-auth-oauthlib` - Google認証
-
-```bash
-pip install google-api-python-client google-auth-oauthlib
-```

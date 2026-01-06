@@ -93,44 +93,7 @@
 | Anthropic API | Claude Sonnet、ファイル数による | 〜500円 |
 | **合計** | | **約1,000〜1,200円** |
 
-## Installation
-
-```bash
-# リポジトリをクローン
-git clone https://github.com/JinJin48/echo-me.git
-cd echo-me
-
-# 仮想環境を作成（推奨）
-python -m venv venv
-source venv/bin/activate  # Windows: venv\Scripts\activate
-
-# 依存関係をインストール
-pip install -r requirements.txt
-
-# 環境変数を設定
-cp .env.example .env
-# .envファイルを編集してAPIキーとフォルダIDを設定
-```
-
-## Local Development
-
-### OAuth認証の準備
-
-1. [Google Cloud Console](https://console.cloud.google.com/)でプロジェクトを作成
-2. Google Drive APIを有効化
-3. OAuth同意画面を設定（外部、テストユーザーに自分を追加）
-4. 認証情報 → OAuthクライアントIDを作成（デスクトップアプリ）
-5. `credentials.json`をダウンロードして`src/`に配置
-
-### ローカルテスト実行
-
-```bash
-python src/local_test.py
-```
-
-初回実行時はOAuth認証のためブラウザが開きます。認証後は`token.json`が保存され、次回以降は自動的に認証されます。
-
-## Cloud Run Deployment
+## Deployment
 
 ### 1. GCPプロジェクトの設定
 
@@ -265,7 +228,6 @@ echo-me/
 ├── cloudbuild.yaml            # Cloud Build CI/CD設定
 ├── CLAUDE.md                  # Claude Code用コンテキスト
 ├── src/
-│   ├── local_test.py          # ローカルテスト用スクリプト
 │   ├── cloud_function.py      # Cloud Run用コア処理
 │   └── modules/
 │       ├── file_reader/       # ファイル読み込みモジュール
@@ -275,7 +237,6 @@ echo-me/
 │       ├── notifier/          # Discord通知
 │       ├── notion_publisher.py # Notion投稿モジュール
 │       └── approval_watcher.py # 承認済みファイル監視
-├── .env                       # API Key（Git管理外）
 ├── .env.example               # 環境変数のサンプル
 ├── .gitignore
 ├── requirements.txt
@@ -284,9 +245,8 @@ echo-me/
 
 ## Security Notes
 
-- `credentials.json`および`token.json`は**絶対にGitHubにプッシュしないでください**
-- これらのファイルは`.gitignore`に登録されています
-- 本番環境ではSecret Managerを使用して認証情報を管理
+- 認証情報はSecret Managerで管理
+- APIキーやフォルダIDは環境変数で設定
 
 ## Requirements
 

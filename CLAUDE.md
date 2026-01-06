@@ -107,8 +107,7 @@ echo-meは、音声ファイルやMarkdownファイルからブログ・SNS投�
 - `functions-framework`を使用してHTTPハンドラーを起動
 
 ### 認証方式: OAuth + Secret Manager
-- **ローカル開発**: `src/credentials.json`、`src/token.json`
-- **Cloud Run**: Secret Managerからマウント
+- Secret Managerからマウント
   - `/secrets-cred/credentials.json`
   - `/secrets-token/token.json`
 - サービスアカウントではなくOAuth認証を使用（個人のGoogle Driveアクセスのため）
@@ -136,10 +135,7 @@ echo-me/
 ├── cloudbuild.yaml            # Cloud Build CI/CD設定
 ├── CLAUDE.md                  # このファイル（Claude Code用コンテキスト）
 ├── src/
-│   ├── local_test.py          # ローカルテスト用スクリプト（OAuth認証）
 │   ├── cloud_function.py      # Cloud Run用コア処理
-│   ├── credentials.json       # OAuth認証情報（Git管理外）
-│   ├── token.json             # OAuthトークン（Git管理外）
 │   └── modules/
 │       ├── __init__.py
 │       ├── file_reader/       # ファイル読み込みモジュール
@@ -164,7 +160,6 @@ echo-me/
 │       │   └── README.md
 │       ├── notion_publisher.py    # Notion投稿モジュール
 │       └── approval_watcher.py    # 承認済みファイル監視モジュール
-├── .env                       # API Key（.gitignore対象）
 ├── .env.example               # 環境変数のサンプル
 ├── .gitignore
 ├── requirements.txt
@@ -238,9 +233,9 @@ Google Drive APIを使用したフォルダ監視モジュール。
 | `upload_file(local_path, filename)` | パス, ファイル名 | `str` | ファイルアップロード |
 | `mark_as_processed(file_id, name)` | ID, 名前 | なし | 処理済みマーク |
 
-**認証情報パス（優先順位順）:**
-1. Cloud Run: `/secrets-cred/credentials.json`, `/secrets-token/token.json`
-2. ローカル: `src/credentials.json`, `src/token.json`
+**認証情報パス（Cloud Run）:**
+- `/secrets-cred/credentials.json`
+- `/secrets-token/token.json`
 
 **環境変数:**
 - `GDRIVE_INPUT_FOLDER_ID`: 入力フォルダID
@@ -320,7 +315,6 @@ Notion APIを使用したコンテンツ投稿モジュール。
 | `Dockerfile` | Cloud Run用Dockerイメージ定義 |
 | `Procfile` | Cloud Run用プロセス定義（functions-framework起動） |
 | `cloudbuild.yaml` | Cloud Build CI/CD設定（自動ビルド・デプロイ） |
-| `src/local_test.py` | ローカルテスト用スクリプト（OAuth認証） |
 | `src/cloud_function.py` | Cloud Run用コア処理 |
 | `src/modules/file_reader/` | 各種ファイル形式からテキスト抽出 |
 | `src/modules/llm_processor/` | Claude APIを使用したコンテンツ生成 |
@@ -329,7 +323,6 @@ Notion APIを使用したコンテンツ投稿モジュール。
 | `src/modules/notifier/` | Discord Webhook通知 |
 | `src/modules/notion_publisher.py` | Notion APIを使用したページ作成 |
 | `src/modules/approval_watcher.py` | 承認済みファイルの監視・Notion投稿 |
-| `.env` | 環境変数（Git管理外） |
 
 ## Input File Types
 
@@ -365,13 +358,9 @@ Notion APIを使用したコンテンツ投稿モジュール。
 - フォルダIDやWebhook URLもハードコーディング禁止
 
 ### セキュリティ注意事項
-- **`credentials.json`と`token.json`はGit管理禁止**
-- これらは機密情報を含むため、**絶対にGitHubに公開しない**
-- `credentials.json`: Google Cloud OAuth クライアント認証情報
-- `token.json`: OAuth認証後に生成されるアクセストークン
-- これらのファイルは`.gitignore`に登録済み
-- 万が一コミットした場合は、Google Cloud Consoleで認証情報を無効化し、新規発行すること
-- 本番環境ではSecret Managerを使用して認証情報を管理する
+- 認証情報はSecret Managerで管理
+- APIキーやフォルダIDは環境変数で設定
+- 機密情報はハードコーディング禁止
 
 **必須環境変数:**
 | 変数名 | 説明 |
@@ -390,15 +379,6 @@ Notion APIを使用したコンテンツ投稿モジュール。
 - モデル: `claude-sonnet-4-20250514`
 
 ## Usage
-
-### ローカルテスト実行
-
-```bash
-# Google Driveの入力フォルダからファイルを取得して処理
-python src/local_test.py
-```
-
-初回実行時はOAuth認証のためブラウザが開きます。
 
 ### Cloud Runデプロイ
 
