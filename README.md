@@ -163,7 +163,7 @@ mainブランチへのpushで自動的にビルド・デプロイが実行され
 1. `git push origin main` を実行
 2. Cloud Build Triggerが検知
 3. `cloudbuild.yaml`に基づいてDockerイメージをビルド
-4. Container Registry (`gcr.io/echo-me-483413/echo-me`) にプッシュ
+4. Container Registry (`gcr.io/$PROJECT_ID/echo-me`) にプッシュ
 5. Cloud Run (`asia-southeast1`) に自動デプロイ
 
 ### Cloud Build Triggerの設定
@@ -191,6 +191,8 @@ gcloud builds submit --config=cloudbuild.yaml
 | `ANTHROPIC_API_KEY` | Claude APIキー | ○ |
 | `GDRIVE_INPUT_FOLDER_ID` | Google Drive入力フォルダID | ○ |
 | `GDRIVE_OUTPUT_FOLDER_ID` | Google Drive出力フォルダID | ○ |
+| `GDRIVE_APPROVED_FOLDER_ID` | 承認済みフォルダID | - |
+| `GDRIVE_POSTED_FOLDER_ID` | Notion投稿済みフォルダID | - |
 | `DISCORD_WEBHOOK_URL` | Discord通知用Webhook URL | - |
 | `NOTION_API_KEY` | Notion APIキー | - |
 | `NOTION_DATABASE_ID` | Notion データベースID | - |

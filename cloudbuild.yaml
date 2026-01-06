@@ -1,11 +1,11 @@
 steps:
   # Build Docker image
   - name: 'gcr.io/cloud-builders/docker'
-    args: ['build', '-t', 'gcr.io/echo-me-483413/echo-me', '.']
+    args: ['build', '-t', 'gcr.io/$PROJECT_ID/echo-me', '.']
 
   # Push to Container Registry
   - name: 'gcr.io/cloud-builders/docker'
-    args: ['push', 'gcr.io/echo-me-483413/echo-me']
+    args: ['push', 'gcr.io/$PROJECT_ID/echo-me']
 
   # Deploy to Cloud Run
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
@@ -15,14 +15,14 @@ steps:
       - 'deploy'
       - 'echo-me'
       - '--image'
-      - 'gcr.io/echo-me-483413/echo-me'
+      - 'gcr.io/$PROJECT_ID/echo-me'
       - '--region'
       - 'asia-southeast1'
       - '--platform'
       - 'managed'
 
 images:
-  - 'gcr.io/echo-me-483413/echo-me'
+  - 'gcr.io/$PROJECT_ID/echo-me'
 
 options:
   logging: CLOUD_LOGGING_ONLY

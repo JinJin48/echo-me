@@ -73,7 +73,7 @@ echo-meは、音声ファイルやMarkdownファイルからブログ・SNS投�
 ### CI/CD: Cloud Build + GitHub連携
 - mainブランチへのpushで自動ビルド・デプロイ
 - `cloudbuild.yaml`でビルド・デプロイ手順を定義
-- Container Registry: `gcr.io/echo-me-483413/echo-me`
+- Container Registry: `gcr.io/$PROJECT_ID/echo-me`
 - デプロイ先: Cloud Run (`asia-southeast1`)
 
 ### 月額コスト: 約1,000〜1,200円
@@ -136,9 +136,9 @@ Google Drive/
 │   └── *.md, *.txt, etc.      # 未処理ファイル → 処理後 _processed_ プレフィックス付与
 ├── 200. Output/               # 出力フォルダ（GDRIVE_OUTPUT_FOLDER_ID）
 │   └── *_blog.md, *_x_post.txt, *_linkedin.txt
-├── 300. Approved/             # 承認済みフォルダ（ID: 1myMvC0_MdzElXPyoXlayF9cQ6lOXOq8k）
+├── 300. Approved/             # 承認済みフォルダ（GDRIVE_APPROVED_FOLDER_ID）
 │   └── *.md, *.txt            # レビュー後、Notion投稿待ちファイル
-└── 400. Posted -> Notion/     # Notion投稿済みフォルダ（ID: 1kffoij7fmKkFX3jYVq5KqXGY8j8fFWC6）
+└── 400. Posted -> Notion/     # Notion投稿済みフォルダ（GDRIVE_POSTED_FOLDER_ID）
     └── *.md, *.txt            # Notion投稿完了後に移動
 ```
 
@@ -334,6 +334,8 @@ Notion APIを使用したコンテンツ投稿モジュール。
 | `ANTHROPIC_API_KEY` | Claude APIキー |
 | `GDRIVE_INPUT_FOLDER_ID` | Google Drive入力フォルダID |
 | `GDRIVE_OUTPUT_FOLDER_ID` | Google Drive出力フォルダID |
+| `GDRIVE_APPROVED_FOLDER_ID` | 承認済みフォルダID（Notion連携時に必要） |
+| `GDRIVE_POSTED_FOLDER_ID` | Notion投稿済みフォルダID（Notion連携時に必要） |
 | `DISCORD_WEBHOOK_URL` | Discord通知用Webhook URL（オプション） |
 | `NOTION_API_KEY` | Notion APIキー（オプション、Notion連携時に必要） |
 | `NOTION_DATABASE_ID` | Notion投稿先データベースID（オプション） |

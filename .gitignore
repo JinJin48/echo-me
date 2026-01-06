@@ -3,6 +3,9 @@
 .env.local
 .env.*.local
 
+# Claude Code settings
+.claude/
+
 # Google API credentials
 credentials.json
 token.json

@@ -15,11 +15,6 @@ from modules.notion_publisher import NotionPublisher
 from modules.notifier import notify_notion_success, notify_notion_error
 
 
-# Google Drive フォルダID
-APPROVED_FOLDER_ID = "1myMvC0_MdzElXPyoXlayF9cQ6lOXOq8k"
-POSTED_FOLDER_ID = "1kffoij7fmKkFX3jYVq5KqXGY8j8fFWC6"
-
-
 class ApprovalWatcher:
     """承認済みファイルを監視してNotionに投稿するクラス"""
 
@@ -33,11 +28,26 @@ class ApprovalWatcher:
         Args:
             approved_folder_id: 承認済みフォルダID
             posted_folder_id: 投稿済みフォルダID
+
+        Raises:
+            ValueError: フォルダIDが設定されていない場合
         """
         load_dotenv()
 
-        self.approved_folder_id = approved_folder_id or APPROVED_FOLDER_ID
-        self.posted_folder_id = posted_folder_id or POSTED_FOLDER_ID
+        self.approved_folder_id = approved_folder_id or os.getenv("GDRIVE_APPROVED_FOLDER_ID")
+        self.posted_folder_id = posted_folder_id or os.getenv("GDRIVE_POSTED_FOLDER_ID")
+
+        if not self.approved_folder_id:
+            raise ValueError(
+                "GDRIVE_APPROVED_FOLDER_IDが設定されていません。"
+                ".envファイルで設定してください。"
+            )
+
+        if not self.posted_folder_id:
+            raise ValueError(
+                "GDRIVE_POSTED_FOLDER_IDが設定されていません。"
+                ".envファイルで設定してください。"
+            )
 
         # GDriveWatcherを初期化（入力/出力フォルダは使用しないがインスタンスは必要）
         self.gdrive = GDriveWatcher()
