@@ -411,3 +411,27 @@ gcloud run deploy echo-me \
 2. Notionデータベースにページを作成
 3. Discord通知（成功/エラー）
 4. 投稿済みフォルダ（400. Posted -> Notion）に移動
+
+## Security Policy
+
+### 機密情報の管理方針
+- .envファイルは作成しない
+- 全ての機密情報（API Key、認証情報、フォルダIDなど）はGCP Secret Managerに登録
+- ローカル開発時もSecret Managerを参照（.envファイル不使用）
+- ハードコーディング禁止
+
+### 開発時の認証
+```bash
+gcloud auth application-default login
+```
+
+### Secret Manager使用例
+```python
+from google.cloud import secretmanager
+
+def get_secret(secret_id, project_id):
+    client = secretmanager.SecretManagerServiceClient()
+    name = f"projects/{project_id}/secrets/{secret_id}/versions/latest"
+    response = client.access_secret_version(request={"name": name})
+    return response.payload.data.decode("UTF-8")
+```
