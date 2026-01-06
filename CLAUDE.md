@@ -160,7 +160,6 @@ echo-me/
 │       │   └── README.md
 │       ├── notion_publisher.py    # Notion投稿モジュール
 │       └── approval_watcher.py    # 承認済みファイル監視モジュール
-├── .env.example               # 環境変数のサンプル
 ├── .gitignore
 ├── requirements.txt
 └── README.md
