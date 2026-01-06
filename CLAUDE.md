@@ -21,13 +21,17 @@ echo-meは、音声ファイルやMarkdownファイルからブログ・SNS投�
 - Secret Managerによる認証情報管理
 - Cloud Build CI/CD（mainブランチへのpushで自動デプロイ）
 
-### Phase 3: 配信自動化（予定）
-- [ ] Notion API連携によるレビューワークフロー
+### Phase 3: Notion連携 ✅ 完了
+- [x] Notion API連携によるレビューワークフロー
+- [x] 承認済みファイルのNotion自動投稿
+- [x] Discord通知（投稿成功/エラー）
+
+### Phase 4: 配信自動化（予定）
 - [ ] LinkedIn API連携による自動投稿
 - [ ] X API連携による自動投稿
 - [ ] SAP Community連携
 
-### Phase 4: AI強化（予定）
+### Phase 5: AI強化（予定）
 - [ ] コンテンツの品質スコアリング
 - [ ] トレンド分析による最適投稿時間提案
 - [ ] マルチ言語対応（日英）
@@ -111,15 +115,31 @@ echo-me/
 │       │   ├── __init__.py
 │       │   ├── watcher.py
 │       │   └── README.md
-│       └── notifier/          # 通知モジュール
-│           ├── __init__.py
-│           ├── discord.py
-│           └── README.md
+│       ├── notifier/          # 通知モジュール
+│       │   ├── __init__.py
+│       │   ├── discord.py
+│       │   └── README.md
+│       ├── notion_publisher.py    # Notion投稿モジュール
+│       └── approval_watcher.py    # 承認済みファイル監視モジュール
 ├── .env                       # API Key（.gitignore対象）
 ├── .env.example               # 環境変数のサンプル
 ├── .gitignore
 ├── requirements.txt
 └── README.md
+```
+
+## Google Drive Folder Structure
+
+```
+Google Drive/
+├── 100. Input/                # 入力フォルダ（GDRIVE_INPUT_FOLDER_ID）
+│   └── *.md, *.txt, etc.      # 未処理ファイル → 処理後 _processed_ プレフィックス付与
+├── 200. Output/               # 出力フォルダ（GDRIVE_OUTPUT_FOLDER_ID）
+│   └── *_blog.md, *_x_post.txt, *_linkedin.txt
+├── 300. Approved/             # 承認済みフォルダ（ID: 1myMvC0_MdzElXPyoXlayF9cQ6lOXOq8k）
+│   └── *.md, *.txt            # レビュー後、Notion投稿待ちファイル
+└── 400. Posted -> Notion/     # Notion投稿済みフォルダ（ID: 1kffoij7fmKkFX3jYVq5KqXGY8j8fFWC6）
+    └── *.md, *.txt            # Notion投稿完了後に移動
 ```
 
 ## Modules
@@ -183,21 +203,69 @@ Google Drive APIを使用したフォルダ監視モジュール。
 
 ### notifier
 
-Discord Webhookを使用したエラー通知モジュール。
+Discord Webhookを使用した通知モジュール。
 
 | 関数/クラス | 引数 | 戻り値 | 説明 |
 |-------------|------|--------|------|
 | `DiscordNotifier` | クラス | - | Discord通知管理 |
-| `send_error(error, context, file_name)` | 例外, コンテキスト, ファイル名 | `bool` | エラー通知送信 |
-| `notify_error(error, context, file_name)` | 同上 | `bool` | 関数インターフェース |
+| `notify_error(error, context, file_name)` | 例外, コンテキスト, ファイル名 | `bool` | エラー通知送信 |
+| `notify_review(file_names, source_file, output_folder_id)` | ファイル名リスト, 元ファイル, フォルダID | `bool` | レビュー待ち通知 |
+| `notify_notion_success(page_title, page_id, source_file)` | タイトル, ページID, 元ファイル | `bool` | Notion投稿成功通知 |
+| `notify_notion_error(error, file_name)` | 例外, ファイル名 | `bool` | Notion投稿エラー通知 |
 
 **環境変数:**
 - `DISCORD_WEBHOOK_URL`: Discord WebhookのURL
 
-**エラー通知仕様:**
-- エラー発生時のみ通知（成功時は通知なし）
-- エラータイプ、メッセージ、スタックトレースを含む
+**Discord通知タイミング:**
+| タイミング | 関数 | 内容 |
+|------------|------|------|
+| レビュー待ちファイル作成 | `notify_review` | 生成されたファイル名、Google Driveリンク |
+| Notion投稿成功 | `notify_notion_success` | ページタイトル、NotionページURL |
+| Notion投稿エラー | `notify_notion_error` | エラータイプ、メッセージ |
+| 処理エラー | `notify_error` | エラータイプ、メッセージ、スタックトレース |
+
+**通知仕様:**
 - Webhook未設定時はログ出力のみ（エラーにはならない）
+
+### notion_publisher
+
+Notion APIを使用したコンテンツ投稿モジュール。
+
+| 関数/クラス | 引数 | 戻り値 | 説明 |
+|-------------|------|--------|------|
+| `NotionPublisher` | クラス | - | Notion投稿管理 |
+| `create_page(title, content, properties)` | タイトル, Markdown, プロパティ | `str` | ページ作成、ページIDを返す |
+| `markdown_to_notion_blocks(markdown)` | Markdown文字列 | `list[dict]` | MarkdownをNotionブロックに変換 |
+| `post_to_notion(title, content)` | タイトル, Markdown | `str` | 関数インターフェース |
+
+**環境変数:**
+- `NOTION_API_KEY`: Notion APIキー
+- `NOTION_DATABASE_ID`: 投稿先データベースID
+
+**対応Markdown記法:**
+- 見出し（h1, h2, h3）
+- 段落
+- 箇条書き、番号付きリスト
+- コードブロック
+- 引用
+- 太字、イタリック、インラインコード、リンク
+
+### approval_watcher
+
+承認済みファイルを監視してNotionに投稿するモジュール。
+
+| 関数/クラス | 引数 | 戻り値 | 説明 |
+|-------------|------|--------|------|
+| `ApprovalWatcher` | クラス | - | 承認ワークフロー管理 |
+| `list_approved_files()` | なし | `list[dict]` | 承認済みファイル一覧 |
+| `move_to_posted(file_id)` | ファイルID | なし | 投稿済みフォルダに移動 |
+| `process_approved_files()` | なし | `list[dict]` | 承認済みファイルを処理 |
+
+**処理フロー:**
+1. 承認済みフォルダ（300. Approved）からファイルを取得
+2. Notionデータベースにページを作成
+3. Discord通知（成功/エラー）
+4. 投稿済みフォルダ（400. Posted -> Notion）に移動
 
 ## File Descriptions
 
@@ -214,6 +282,8 @@ Discord Webhookを使用したエラー通知モジュール。
 | `src/modules/content_formatter/` | 出力ファイルの生成・保存 |
 | `src/modules/gdrive_watcher/` | Google Drive監視・ファイル取得 |
 | `src/modules/notifier/` | Discord Webhook通知 |
+| `src/modules/notion_publisher.py` | Notion APIを使用したページ作成 |
+| `src/modules/approval_watcher.py` | 承認済みファイルの監視・Notion投稿 |
 | `.env` | 環境変数（Git管理外） |
 
 ## Input File Types
@@ -265,6 +335,8 @@ Discord Webhookを使用したエラー通知モジュール。
 | `GDRIVE_INPUT_FOLDER_ID` | Google Drive入力フォルダID |
 | `GDRIVE_OUTPUT_FOLDER_ID` | Google Drive出力フォルダID |
 | `DISCORD_WEBHOOK_URL` | Discord通知用Webhook URL（オプション） |
+| `NOTION_API_KEY` | Notion APIキー（オプション、Notion連携時に必要） |
+| `NOTION_DATABASE_ID` | Notion投稿先データベースID（オプション） |
 
 ### 使用API
 - Anthropic Claude API
@@ -300,7 +372,15 @@ gcloud run deploy echo-me \
 
 ### 処理フロー
 
+**コンテンツ生成フロー:**
 1. Google Driveの入力フォルダから未処理ファイルを取得
 2. Claude APIでコンテンツ生成（ブログ、X、LinkedIn）
 3. 生成結果をGoogle Driveの出力フォルダにアップロード
-4. 処理済みファイルを`_processed`でリネーム
+4. 処理済みファイルに`_processed_`プレフィックスを付与
+5. Discord通知（レビュー待ちファイル作成）
+
+**Notion投稿フロー:**
+1. 承認済みフォルダ（300. Approved）からファイルを取得
+2. Notionデータベースにページを作成
+3. Discord通知（成功/エラー）
+4. 投稿済みフォルダ（400. Posted -> Notion）に移動

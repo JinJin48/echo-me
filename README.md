@@ -32,7 +32,11 @@
   - **linkedin_post.txt**: LinkedIn投稿
 - Cloud Run + Cloud Schedulerによる定期自動処理
 - Cloud Buildによる自動デプロイ（CI/CD）
-- エラー時のDiscord通知
+- **承認ワークフロー**: 承認済みフォルダからNotionへ自動投稿
+- **Discord通知**:
+  - レビュー待ちファイル作成時
+  - Notion投稿成功時（ページURLリンク付き）
+  - エラー発生時（処理エラー、Notion投稿エラー）
 
 ## Cost Estimate
 
@@ -188,6 +192,8 @@ gcloud builds submit --config=cloudbuild.yaml
 | `GDRIVE_INPUT_FOLDER_ID` | Google Drive入力フォルダID | ○ |
 | `GDRIVE_OUTPUT_FOLDER_ID` | Google Drive出力フォルダID | ○ |
 | `DISCORD_WEBHOOK_URL` | Discord通知用Webhook URL | - |
+| `NOTION_API_KEY` | Notion APIキー | - |
+| `NOTION_DATABASE_ID` | Notion データベースID | - |
 
 ## Supported Input Formats
 
@@ -221,7 +227,9 @@ echo-me/
 │       ├── llm_processor/     # Claude API呼び出しモジュール
 │       ├── content_formatter/ # 出力フォーマットモジュール
 │       ├── gdrive_watcher/    # Google Drive監視
-│       └── notifier/          # Discord通知
+│       ├── notifier/          # Discord通知
+│       ├── notion_publisher.py # Notion投稿モジュール
+│       └── approval_watcher.py # 承認済みファイル監視
 ├── .env                       # API Key（Git管理外）
 ├── .env.example               # 環境変数のサンプル
 ├── .gitignore
