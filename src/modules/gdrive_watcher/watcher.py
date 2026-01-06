@@ -232,12 +232,8 @@ class GDriveWatcher:
             file_id: ファイルのID
             original_name: 元のファイル名
         """
-        # ファイル名に_processedを付与
-        name_parts = original_name.rsplit(".", 1)
-        if len(name_parts) == 2:
-            new_name = f"{name_parts[0]}_processed.{name_parts[1]}"
-        else:
-            new_name = f"{original_name}_processed"
+        # ファイル名の先頭に_processed_を付与
+        new_name = f"_processed_{original_name}"
 
         self.service.files().update(
             fileId=file_id, body={"name": new_name}
