@@ -243,10 +243,12 @@ echo-me/
 └── README.md
 ```
 
-## Security Notes
+## Security Policy
 
-- 認証情報はSecret Managerで管理
-- APIキーやフォルダIDは環境変数で設定
+### 機密情報の管理方針
+- .envファイルは作成しない
+- 全ての機密情報はGCP Secret Managerに登録
+- ローカル開発時もSecret Managerを参照
 
 ## Requirements
 
