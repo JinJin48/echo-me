@@ -12,6 +12,7 @@ from dotenv import load_dotenv
 
 from modules.gdrive_watcher import GDriveWatcher
 from modules.notion_publisher import NotionPublisher
+from modules.notifier import notify_notion_success, notify_notion_error
 
 
 # Google Drive フォルダID
@@ -121,6 +122,13 @@ class ApprovalWatcher:
                     # 投稿済みフォルダに移動
                     self.move_to_posted(file_id)
 
+                    # Discord通知（成功）
+                    notify_notion_success(
+                        page_title=title,
+                        page_id=page_id,
+                        source_file=file_name,
+                    )
+
                     results.append({
                         "file_name": file_name,
                         "status": "success",
@@ -128,6 +136,12 @@ class ApprovalWatcher:
                     })
 
             except Exception as e:
+                # Discord通知（エラー）
+                notify_notion_error(
+                    error=e,
+                    file_name=file_name,
+                )
+
                 results.append({
                     "file_name": file_name,
                     "status": "error",

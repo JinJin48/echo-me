@@ -260,3 +260,138 @@ def notify_review(
         # Webhook URLが設定されていない場合はログ出力のみ
         print(f"Discord通知をスキップ（Webhook未設定）: レビュー待ちファイル {file_names}")
         return False
+
+
+def notify_notion_success(
+    page_title: str,
+    page_id: str,
+    source_file: str | None = None,
+    webhook_url: str | None = None,
+) -> bool:
+    """Notion投稿成功通知を送信する（関数インターフェース）
+
+    Args:
+        page_title: 作成されたNotionページのタイトル
+        page_id: NotionページのID
+        source_file: 元ファイル名
+        webhook_url: Discord WebhookのURL
+
+    Returns:
+        送信成功時True、失敗時False
+    """
+    try:
+        notifier = DiscordNotifier(webhook_url)
+
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        # NotionページのURL
+        notion_url = f"https://notion.so/{page_id.replace('-', '')}"
+
+        # embedを構築
+        embed = {
+            "title": "✅ Notionに投稿完了",
+            "color": 5763719,  # 緑色
+            "fields": [
+                {
+                    "name": "ページタイトル",
+                    "value": f"`{page_title}`",
+                    "inline": True,
+                },
+                {
+                    "name": "投稿時刻",
+                    "value": timestamp,
+                    "inline": True,
+                },
+                {
+                    "name": "Notionページ",
+                    "value": f"[Notionで開く]({notion_url})",
+                    "inline": False,
+                },
+            ],
+            "footer": {
+                "text": "echo-me Content Generator",
+            },
+        }
+
+        if source_file:
+            embed["fields"].insert(0, {
+                "name": "元ファイル",
+                "value": f"`{source_file}`",
+                "inline": True,
+            })
+
+        payload = {
+            "embeds": [embed],
+        }
+
+        return notifier._send_webhook(payload)
+
+    except ValueError:
+        # Webhook URLが設定されていない場合はログ出力のみ
+        print(f"Discord通知をスキップ（Webhook未設定）: Notion投稿成功 {page_title}")
+        return False
+
+
+def notify_notion_error(
+    error: Exception,
+    file_name: str | None = None,
+    webhook_url: str | None = None,
+) -> bool:
+    """Notion投稿エラー通知を送信する（関数インターフェース）
+
+    Args:
+        error: 発生した例外
+        file_name: 処理中だったファイル名
+        webhook_url: Discord WebhookのURL
+
+    Returns:
+        送信成功時True、失敗時False
+    """
+    try:
+        notifier = DiscordNotifier(webhook_url)
+
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        # embedを構築
+        embed = {
+            "title": "❌ Notion投稿エラー",
+            "color": 15158332,  # 赤色
+            "fields": [
+                {
+                    "name": "エラータイプ",
+                    "value": f"`{type(error).__name__}`",
+                    "inline": True,
+                },
+                {
+                    "name": "発生時刻",
+                    "value": timestamp,
+                    "inline": True,
+                },
+                {
+                    "name": "エラーメッセージ",
+                    "value": f"```{str(error)[:1000]}```",
+                    "inline": False,
+                },
+            ],
+            "footer": {
+                "text": "echo-me Content Generator",
+            },
+        }
+
+        if file_name:
+            embed["fields"].insert(0, {
+                "name": "対象ファイル",
+                "value": f"`{file_name}`",
+                "inline": True,
+            })
+
+        payload = {
+            "embeds": [embed],
+        }
+
+        return notifier._send_webhook(payload)
+
+    except ValueError:
+        # Webhook URLが設定されていない場合はログ出力のみ
+        print(f"Discord通知をスキップ（Webhook未設定）: Notion投稿エラー {error}")
+        return False
