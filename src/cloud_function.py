@@ -13,6 +13,7 @@ from modules.llm_processor import LLMProcessor
 from modules.content_formatter import save_outputs
 from modules.gdrive_watcher import GDriveWatcher
 from modules.notifier import notify_error, notify_review
+from modules.approval_watcher import process_approved_files
 
 
 def main(request=None):
@@ -136,6 +137,20 @@ def main(request=None):
             f"処理完了: {len(results['processed'])}件成功, "
             f"{len(results['errors'])}件エラー"
         )
+
+        # 承認済みファイルをNotionに投稿
+        try:
+            approval_results = process_approved_files()
+            results["notion_posted"] = approval_results
+        except Exception as e:
+            results["errors"].append({
+                "error": str(e),
+                "type": "notion_error",
+            })
+            notify_error(
+                error=e,
+                context="Notion投稿処理",
+            )
 
     except Exception as e:
         # 全体的なエラー
