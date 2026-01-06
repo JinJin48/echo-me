@@ -237,7 +237,6 @@ echo-me/
 │       ├── notifier/          # Discord通知
 │       ├── notion_publisher.py # Notion投稿モジュール
 │       └── approval_watcher.py # 承認済みファイル監視
-├── .env.example               # 環境変数のサンプル
 ├── .gitignore
 ├── requirements.txt
 └── README.md
