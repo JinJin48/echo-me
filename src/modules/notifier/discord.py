@@ -187,3 +187,76 @@ def notify_error(
         # Webhook URLが設定されていない場合はログ出力のみ
         print(f"Discord通知をスキップ（Webhook未設定）: {error}")
         return False
+
+
+def notify_review(
+    file_names: list[str],
+    source_file: str | None = None,
+    output_folder_id: str | None = None,
+    webhook_url: str | None = None,
+) -> bool:
+    """レビュー待ちファイル作成通知を送信する（関数インターフェース）
+
+    Args:
+        file_names: 作成されたファイル名のリスト
+        source_file: 元ファイル名
+        output_folder_id: 出力フォルダのGoogle Drive ID
+        webhook_url: Discord WebhookのURL
+
+    Returns:
+        送信成功時True、失敗時False
+    """
+    try:
+        notifier = DiscordNotifier(webhook_url)
+
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        # ファイルリストを整形
+        files_text = "\n".join([f"• `{name}`" for name in file_names])
+
+        # embedを構築
+        embed = {
+            "title": "📝 レビュー待ちファイルが作成されました",
+            "color": 5763719,  # 緑色
+            "fields": [
+                {
+                    "name": "作成ファイル",
+                    "value": files_text,
+                    "inline": False,
+                },
+                {
+                    "name": "作成時刻",
+                    "value": timestamp,
+                    "inline": True,
+                },
+            ],
+            "footer": {
+                "text": "echo-me Content Generator",
+            },
+        }
+
+        if source_file:
+            embed["fields"].insert(0, {
+                "name": "元ファイル",
+                "value": f"`{source_file}`",
+                "inline": True,
+            })
+
+        if output_folder_id:
+            folder_url = f"https://drive.google.com/drive/folders/{output_folder_id}"
+            embed["fields"].append({
+                "name": "出力フォルダ",
+                "value": f"[Google Driveで開く]({folder_url})",
+                "inline": False,
+            })
+
+        payload = {
+            "embeds": [embed],
+        }
+
+        return notifier._send_webhook(payload)
+
+    except ValueError:
+        # Webhook URLが設定されていない場合はログ出力のみ
+        print(f"Discord通知をスキップ（Webhook未設定）: レビュー待ちファイル {file_names}")
+        return False

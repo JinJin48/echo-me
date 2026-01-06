@@ -12,7 +12,7 @@ from modules.file_reader import read_file
 from modules.llm_processor import LLMProcessor
 from modules.content_formatter import save_outputs
 from modules.gdrive_watcher import GDriveWatcher
-from modules.notifier import notify_error
+from modules.notifier import notify_error, notify_review
 
 
 def main(request=None):
@@ -82,24 +82,35 @@ def main(request=None):
                     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
                     base_name = os.path.splitext(file_name)[0]
 
+                    blog_filename = f"{base_name}_{timestamp}_blog.md"
+                    x_post_filename = f"{base_name}_{timestamp}_x_post.txt"
+                    linkedin_filename = f"{base_name}_{timestamp}_linkedin.txt"
+
                     watcher.upload_file(
                         paths.blog,
-                        f"{base_name}_{timestamp}_blog.md",
+                        blog_filename,
                         mime_type="text/markdown",
                     )
                     watcher.upload_file(
                         paths.x_post,
-                        f"{base_name}_{timestamp}_x_post.txt",
+                        x_post_filename,
                         mime_type="text/plain",
                     )
                     watcher.upload_file(
                         paths.linkedin,
-                        f"{base_name}_{timestamp}_linkedin.txt",
+                        linkedin_filename,
                         mime_type="text/plain",
                     )
 
                     # 処理済みとしてマーク
                     watcher.mark_as_processed(file_id, file_name)
+
+                    # Discord通知（レビュー待ち）
+                    notify_review(
+                        file_names=[blog_filename, x_post_filename, linkedin_filename],
+                        source_file=file_name,
+                        output_folder_id=os.getenv("GDRIVE_OUTPUT_FOLDER_ID"),
+                    )
 
                     results["processed"].append({
                         "file_name": file_name,
