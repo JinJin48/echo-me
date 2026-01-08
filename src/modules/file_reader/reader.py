@@ -41,14 +41,30 @@ def read_file(filepath: str) -> str:
 def _read_text_file(path: Path) -> str:
     """テキストファイル（.txt, .md）を読み込む
 
+    複数のエンコーディングを試行して読み込む。
+
     Args:
         path: ファイルパス
 
     Returns:
         ファイルの内容
+
+    Raises:
+        UnicodeDecodeError: どのエンコーディングでも読み込めない場合
     """
-    with open(path, "r", encoding="utf-8") as f:
-        return f.read()
+    encodings = ['utf-8', 'utf-16', 'shift-jis', 'cp932', 'latin-1']
+
+    for encoding in encodings:
+        try:
+            with open(path, "r", encoding=encoding) as f:
+                return f.read()
+        except UnicodeDecodeError:
+            continue
+
+    raise UnicodeDecodeError(
+        'unknown', b'', 0, 1,
+        f"Could not decode file with any encoding: {path}"
+    )
 
 
 def _read_docx_file(path: Path) -> str:
