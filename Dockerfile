@@ -15,5 +15,5 @@ ENV PORT=8080
 # Expose port (documentation only)
 EXPOSE 8080
 
-# Run the application using shell form to expand $PORT
-CMD exec functions-framework --target=http_handler --port=$PORT
+# Run the application
+CMD ["sh", "-c", "functions-framework --target=http_handler --port=${PORT:-8080}"]
