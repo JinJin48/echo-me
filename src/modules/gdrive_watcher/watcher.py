@@ -6,11 +6,15 @@ Google Drive APIを使用してフォルダを監視し、ファイルを取得�
 
 import io
 import os
+import logging
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
 from dotenv import load_dotenv
+
+# ログ設定
+logger = logging.getLogger(__name__)
 from google.oauth2.credentials import Credentials
 from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
@@ -153,6 +157,7 @@ class GDriveWatcher:
             f"and ({mime_conditions}) "
             f"and not name contains '{processed_marker}'"
         )
+        logger.info(f"Google Drive query: {query}")
 
         results = (
             self.service.files()
@@ -164,7 +169,12 @@ class GDriveWatcher:
             .execute()
         )
 
-        return results.get("files", [])
+        files = results.get("files", [])
+        logger.info(f"Query returned {len(files)} files")
+        for f in files:
+            logger.info(f"  - {f['name']} (mimeType: {f.get('mimeType', 'unknown')})")
+
+        return files
 
     def download_file(self, file_id: str, local_path: str) -> str:
         """ファイルをダウンロードする
