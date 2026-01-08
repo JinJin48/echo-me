@@ -109,6 +109,7 @@ python echo-me.py input.txt --output ./my_output
 | `--topics` | - | トピックタグをカンマ区切りで指定 |
 | `--date` | - | 日付を手動指定（ISO形式: YYYY-MM-DD） |
 | `--no-timestamp` | - | 出力ディレクトリにタイムスタンプを付けない |
+| `--no-llm-metadata` | - | LLMメタデータ自動生成をスキップ |
 
 ## RAG Metadata
 
@@ -122,13 +123,28 @@ source: meeting
 type: minutes
 date: 2025-01-08
 topics: [SAP, GAP]
+summary: SAPとGAPの技術的な差異についての議論
 original_file: meeting_20250108.txt
 ---
 
 # ブログ記事の内容...
 ```
 
+### LLMメタデータ自動生成
+
+`.meta.yaml`ファイルがない場合、Claude APIを使用してメタデータを自動生成します。
+
+**生成されるフィールド:**
+- `source`: コンテンツの出所（meeting / interview / memo / webinar / unknown）
+- `type`: コンテンツの種類（minutes / transcript / note / summary / general）
+- `topics`: 本文から抽出した重要キーワード（3〜5個）
+- `summary`: 1行要約（50文字以内）
+
+LLM生成をスキップするには `--no-llm-metadata` オプションを使用します。
+
 ### ファイル名パターンによる自動推測
+
+LLMメタデータ生成に失敗した場合のフォールバックとして使用されます。
 
 | パターン | source | type |
 |----------|--------|------|
@@ -141,11 +157,13 @@ original_file: meeting_20250108.txt
 ### メタデータ別ファイル方式
 
 入力ファイルと同名の `.meta.yaml` ファイルを配置することで、ファイルごとにメタデータを指定できます。
+`.meta.yaml`がある場合、LLM生成はスキップされます（API呼び出し節約）。
 
 **優先順位:**
 1. コマンドライン引数（最優先）
 2. `.meta.yaml` ファイル
-3. ファイル名パターンによる自動推測
+3. LLMによる自動生成
+4. ファイル名パターンによる自動推測
 
 **使い方:**
 

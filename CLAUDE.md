@@ -313,12 +313,13 @@ Notion APIを使用したコンテンツ投稿モジュール。
 
 ### metadata_extractor
 
-RAG用メタデータ抽出を担当するモジュール。
+RAG用メタデータ抽出を担当するモジュール。LLMによる自動生成機能付き。
 
 | 関数/クラス | 引数 | 戻り値 | 説明 |
 |-------------|------|--------|------|
 | `ContentMetadata` | データクラス | - | メタデータを格納 |
 | `extract_metadata(filename, ...)` | ファイル名, オプション | `ContentMetadata` | メタデータを抽出 |
+| `generate_metadata_with_llm(content, ...)` | 本文, オプション | `dict` | LLMでメタデータを自動生成 |
 | `infer_metadata_from_filename(filename)` | ファイル名 | `dict` | ファイル名からメタデータを推測 |
 | `get_meta_yaml_path(filepath)` | ファイルパス | `str` | .meta.yamlファイルのパスを取得 |
 | `load_metadata_from_yaml(filepath)` | ファイルパス | `dict \| None` | .meta.yamlからメタデータを読み込み |
@@ -328,10 +329,23 @@ RAG用メタデータ抽出を担当するモジュール。
 **メタデータ優先順位:**
 1. コマンドライン引数（最優先）
 2. `.meta.yaml`ファイル
-3. ファイル名パターンによる自動推測
+3. LLMによる自動生成（.meta.yamlがない場合）
+4. ファイル名パターンによる自動推測
+
+**LLMメタデータ自動生成:**
+`.meta.yaml`ファイルがない場合、Claude APIを使用してメタデータを自動生成します。
+
+生成されるフィールド:
+- `source`: コンテンツの出所（meeting / interview / memo / webinar / unknown）
+- `type`: コンテンツの種類（minutes / transcript / note / summary / general）
+- `topics`: 本文から抽出した重要キーワード（3〜5個）
+- `summary`: 1行要約（50文字以内）
+
+LLM生成をスキップするには `--no-llm-metadata` オプションを使用します。
 
 **メタデータ別ファイル方式:**
 入力ファイルと同名の`.meta.yaml`ファイルを配置してメタデータを指定可能。
+`.meta.yaml`がある場合、LLM生成はスキップされます（API呼び出し節約）。
 
 ```
 meeting_20250108.txt       # 入力ファイル
@@ -347,6 +361,7 @@ type: minutes    # minutes / transcript / note / summary / general
 topics:
   - SAP
   - BTP
+summary: 会議の要約（50文字以内）
 ```
 
 **ファイル名パターンによる自動推測:**
@@ -363,6 +378,7 @@ topics:
 - `type`: コンテンツの種類（minutes, summary, etc.）
 - `date`: 処理日（ISO形式: YYYY-MM-DD）
 - `topics`: トピックタグのリスト
+- `summary`: 1行要約（50文字以内）
 - `original_file`: 元ファイル名
 
 **出力フロントマター例:**
@@ -372,6 +388,7 @@ source: meeting
 type: minutes
 date: 2025-01-08
 topics: [SAP, GAP]
+summary: SAPとGAPの技術的な差異についての議論
 original_file: meeting_20250108.txt
 ---
 ```
@@ -476,6 +493,7 @@ python echo-me.py input.txt --output ./my_output
 | `--topics` | - | トピックタグをカンマ区切りで指定 |
 | `--date` | - | 日付を手動指定（ISO形式: YYYY-MM-DD） |
 | `--no-timestamp` | - | 出力ディレクトリにタイムスタンプを付けない |
+| `--no-llm-metadata` | - | LLMメタデータ自動生成をスキップ |
 
 ### Cloud Runデプロイ
 

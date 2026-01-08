@@ -68,7 +68,12 @@ def main(request=None):
                         linkedin = processor.generate_content(content, "linkedin")
 
                         # メタデータを抽出してブログにフロントマターを追加
-                        metadata = extract_metadata(filename=file_name)
+                        # LLMメタデータ生成を使用（.meta.yamlがない場合）
+                        metadata = extract_metadata(
+                            filename=file_name,
+                            content=content,
+                            use_llm=True,
+                        )
                         blog_with_frontmatter = add_frontmatter_to_content(blog, metadata)
 
                         # 一時ディレクトリに保存

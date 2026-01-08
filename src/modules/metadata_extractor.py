@@ -3,6 +3,7 @@ Metadata extractor module for RAG functionality.
 
 Extracts metadata from filenames based on patterns and allows manual override.
 Supports .meta.yaml files for per-file metadata configuration.
+Supports LLM-based metadata generation using Claude API.
 """
 
 import os
@@ -13,6 +14,8 @@ from pathlib import Path
 from typing import Optional
 
 import yaml
+from anthropic import Anthropic
+from dotenv import load_dotenv
 
 
 # Filename pattern to metadata mapping
@@ -36,6 +39,7 @@ class ContentMetadata:
     date: str
     original_file: str
     topics: list[str] = field(default_factory=list)
+    summary: str = ""
 
     def to_yaml_frontmatter(self) -> str:
         """Convert metadata to YAML frontmatter string."""
@@ -50,6 +54,9 @@ class ContentMetadata:
         else:
             lines.append("topics: []")
 
+        if self.summary:
+            lines.append(f"summary: {self.summary}")
+
         lines.append(f"original_file: {self.original_file}")
         lines.append("---")
         lines.append("")  # Empty line after frontmatter
@@ -63,6 +70,7 @@ class ContentMetadata:
             "type": self.type,
             "date": self.date,
             "topics": self.topics,
+            "summary": self.summary,
             "original_file": self.original_file,
         }
 
@@ -137,14 +145,18 @@ def extract_metadata(
     type_override: Optional[str] = None,
     topics: Optional[list[str]] = None,
     date_override: Optional[str] = None,
+    content: Optional[str] = None,
+    use_llm: bool = True,
+    summary_override: Optional[str] = None,
 ) -> ContentMetadata:
     """
-    Extract metadata with priority: CLI args > .meta.yaml > filename inference.
+    Extract metadata with priority: CLI args > .meta.yaml > LLM > filename inference.
 
     Priority order:
     1. Command-line arguments (source_override, type_override, etc.)
     2. .meta.yaml file (if exists next to input file)
-    3. Filename pattern inference
+    3. LLM-based generation (if content is provided and use_llm=True)
+    4. Filename pattern inference
 
     Args:
         filename: The input filename
@@ -152,6 +164,9 @@ def extract_metadata(
         type_override: Manual override for type field (highest priority)
         topics: List of topic tags (highest priority)
         date_override: Manual override for date (ISO format: YYYY-MM-DD)
+        content: Text content for LLM-based metadata generation
+        use_llm: Whether to use LLM for metadata generation (default: True)
+        summary_override: Manual override for summary field
 
     Returns:
         ContentMetadata object with all metadata fields
@@ -162,9 +177,26 @@ def extract_metadata(
     base_type = inferred["type"]
     base_topics: list[str] = []
     base_date = date.today().isoformat()
+    base_summary = ""
 
-    # Layer 2: Load from .meta.yaml file (medium priority)
+    # Layer 2: LLM-based generation (if no .meta.yaml and content provided)
     yaml_metadata = load_metadata_from_yaml(filename)
+    llm_metadata: Optional[dict] = None
+
+    if yaml_metadata is None and content and use_llm:
+        # No .meta.yaml file - try LLM generation
+        try:
+            llm_metadata = generate_metadata_with_llm(content)
+            if llm_metadata:
+                base_source = llm_metadata.get("source", base_source)
+                base_type = llm_metadata.get("type", base_type)
+                base_topics = llm_metadata.get("topics", base_topics)
+                base_summary = llm_metadata.get("summary", base_summary)
+        except Exception as e:
+            # LLM generation failed - continue with filename inference
+            print(f"Warning: LLMメタデータ生成に失敗しました: {e}")
+
+    # Layer 3: Load from .meta.yaml file (medium-high priority)
     if yaml_metadata:
         if "source" in yaml_metadata:
             base_source = yaml_metadata["source"]
@@ -179,12 +211,15 @@ def extract_metadata(
                 base_topics = parse_topics_string(yaml_topics)
         if "date" in yaml_metadata:
             base_date = yaml_metadata["date"]
+        if "summary" in yaml_metadata:
+            base_summary = yaml_metadata["summary"]
 
-    # Layer 3: Apply CLI overrides if provided (highest priority)
+    # Layer 4: Apply CLI overrides if provided (highest priority)
     final_source = source_override if source_override else base_source
     final_type = type_override if type_override else base_type
     final_topics = topics if topics else base_topics
     final_date = date_override if date_override else base_date
+    final_summary = summary_override if summary_override else base_summary
 
     # Extract original filename (basename only)
     original_file = filename.split("/")[-1].split("\\")[-1]
@@ -195,6 +230,7 @@ def extract_metadata(
         date=final_date,
         original_file=original_file,
         topics=final_topics,
+        summary=final_summary,
     )
 
 
@@ -226,3 +262,139 @@ def add_frontmatter_to_content(content: str, metadata: ContentMetadata) -> str:
     """
     frontmatter = metadata.to_yaml_frontmatter()
     return frontmatter + content
+
+
+# LLM metadata generation prompt
+LLM_METADATA_PROMPT = """以下の文章を分析して、メタデータをYAML形式で出力してください。
+
+【出力形式】
+source: meeting / interview / memo / webinar / unknown から1つ選択
+type: minutes / transcript / note / summary / general から1つ選択
+topics: 本文から抽出した重要キーワード（3〜5個、リスト形式）
+summary: 1行要約（50文字以内）
+
+【選択基準】
+- source: コンテンツの出所を判断
+  - meeting: 会議、ミーティング、打ち合わせの記録
+  - interview: インタビュー、対談、質疑応答
+  - memo: メモ、覚書、個人的なノート
+  - webinar: ウェビナー、オンラインセミナー、講演
+  - unknown: 上記に当てはまらない場合
+- type: コンテンツの種類を判断
+  - minutes: 議事録形式
+  - transcript: 文字起こし、会話の書き起こし
+  - note: メモ、ノート形式
+  - summary: 要約、まとめ
+  - general: 一般的な文書
+
+【入力文章】
+{content}
+
+YAMLのみを出力してください（説明や前置きは不要）:
+```yaml"""
+
+
+def generate_metadata_with_llm(
+    content: str,
+    api_key: str | None = None,
+    model: str = "claude-sonnet-4-20250514",
+) -> dict:
+    """
+    Generate metadata using Claude API.
+
+    Args:
+        content: The text content to analyze
+        api_key: Anthropic API key (uses env var if None)
+        model: Model to use for generation
+
+    Returns:
+        Dictionary with source, type, topics, and summary
+
+    Raises:
+        ValueError: If API key is not set
+        Exception: If API call fails
+    """
+    if api_key is None:
+        load_dotenv()
+        api_key = os.getenv("ANTHROPIC_API_KEY")
+
+    if not api_key:
+        raise ValueError(
+            "ANTHROPIC_API_KEYが設定されていません。"
+            ".envファイルまたは環境変数で設定してください。"
+        )
+
+    client = Anthropic(api_key=api_key)
+
+    # Truncate content if too long (first 3000 chars for metadata analysis)
+    truncated_content = content[:3000] if len(content) > 3000 else content
+
+    prompt = LLM_METADATA_PROMPT.format(content=truncated_content)
+
+    message = client.messages.create(
+        model=model,
+        max_tokens=512,
+        messages=[{"role": "user", "content": prompt}],
+    )
+
+    response_text = message.content[0].text
+
+    # Parse YAML from response
+    return _parse_llm_metadata_response(response_text)
+
+
+def _parse_llm_metadata_response(response: str) -> dict:
+    """
+    Parse LLM response to extract metadata.
+
+    Args:
+        response: Raw response from LLM
+
+    Returns:
+        Dictionary with parsed metadata
+    """
+    # Clean up response - remove markdown code blocks if present
+    cleaned = response.strip()
+    if cleaned.startswith("```yaml"):
+        cleaned = cleaned[7:]
+    elif cleaned.startswith("```"):
+        cleaned = cleaned[3:]
+    if cleaned.endswith("```"):
+        cleaned = cleaned[:-3]
+    cleaned = cleaned.strip()
+
+    try:
+        parsed = yaml.safe_load(cleaned)
+        if parsed is None:
+            parsed = {}
+    except yaml.YAMLError:
+        parsed = {}
+
+    result = {
+        "source": parsed.get("source", "unknown"),
+        "type": parsed.get("type", "general"),
+        "topics": [],
+        "summary": parsed.get("summary", ""),
+    }
+
+    # Validate source and type values
+    valid_sources = ["meeting", "interview", "memo", "webinar", "unknown"]
+    valid_types = ["minutes", "transcript", "note", "summary", "general"]
+
+    if result["source"] not in valid_sources:
+        result["source"] = "unknown"
+    if result["type"] not in valid_types:
+        result["type"] = "general"
+
+    # Handle topics - could be list or comma-separated string
+    topics = parsed.get("topics", [])
+    if isinstance(topics, list):
+        result["topics"] = [str(t).strip() for t in topics if t]
+    elif isinstance(topics, str):
+        result["topics"] = parse_topics_string(topics)
+
+    # Truncate summary if too long
+    if len(result["summary"]) > 50:
+        result["summary"] = result["summary"][:47] + "..."
+
+    return result

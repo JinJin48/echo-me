@@ -22,6 +22,7 @@ from modules.metadata_extractor import (
     add_frontmatter_to_content,
     get_meta_yaml_path,
     load_metadata_from_yaml,
+    generate_metadata_with_llm,
 )
 
 
@@ -90,6 +91,12 @@ def parse_args():
         help="出力ディレクトリにタイムスタンプを付けない",
     )
 
+    parser.add_argument(
+        "--no-llm-metadata",
+        action="store_true",
+        help="LLMによるメタデータ自動生成をスキップする",
+    )
+
     return parser.parse_args()
 
 
@@ -128,7 +135,12 @@ def main():
         meta_path = get_meta_yaml_path(args.input_file)
         print(f"  メタデータファイル読み込み: {meta_path}")
 
-    # Extract metadata with priority: CLI > .meta.yaml > filename inference
+    # Determine if LLM metadata generation should be used
+    use_llm = not args.no_llm_metadata
+    if use_llm and not yaml_metadata:
+        print("  LLMによるメタデータ自動生成を実行中...")
+
+    # Extract metadata with priority: CLI > .meta.yaml > LLM > filename inference
     topics = parse_topics_string(args.topics) if args.topics else None
     metadata = extract_metadata(
         filename=args.input_file,
@@ -136,10 +148,14 @@ def main():
         type_override=args.type,
         topics=topics,
         date_override=args.date,
+        content=content if use_llm else None,
+        use_llm=use_llm,
     )
     print(f"  メタデータ: source={metadata.source}, type={metadata.type}")
     if metadata.topics:
         print(f"  トピック: {', '.join(metadata.topics)}")
+    if metadata.summary:
+        print(f"  要約: {metadata.summary}")
 
     # Initialize LLM processor
     try:

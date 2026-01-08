@@ -1,9 +1,11 @@
 # メタデータテンプレート
 # このファイルをコピーして、入力ファイルと同名の .meta.yaml として保存
 # 例: meeting_20250108.txt → meeting_20250108.meta.yaml
+# 注: .meta.yaml がある場合、LLMメタデータ自動生成はスキップされます
 
 source: meeting  # meeting / interview / memo / webinar / unknown
 type: minutes    # minutes / transcript / note / summary / general
 topics:
   - SAP
   - BTP
+summary: 会議の要約（50文字以内）
