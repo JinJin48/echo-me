@@ -16,4 +16,4 @@ ENV PORT=8080
 EXPOSE 8080
 
 # Run the application
-CMD ["sh", "-c", "functions-framework --target=http_handler --port=${PORT:-8080}"]
+CMD ["python", "main.py"]
