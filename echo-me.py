@@ -20,6 +20,8 @@ from modules.metadata_extractor import (
     extract_metadata,
     parse_topics_string,
     add_frontmatter_to_content,
+    get_meta_yaml_path,
+    load_metadata_from_yaml,
 )
 
 
@@ -120,7 +122,13 @@ def main():
         print(f"Error: ファイル読み込みエラー: {e}", file=sys.stderr)
         sys.exit(1)
 
-    # Extract metadata
+    # Check for .meta.yaml file
+    yaml_metadata = load_metadata_from_yaml(args.input_file)
+    if yaml_metadata:
+        meta_path = get_meta_yaml_path(args.input_file)
+        print(f"  メタデータファイル読み込み: {meta_path}")
+
+    # Extract metadata with priority: CLI > .meta.yaml > filename inference
     topics = parse_topics_string(args.topics) if args.topics else None
     metadata = extract_metadata(
         filename=args.input_file,

@@ -138,6 +138,41 @@ original_file: meeting_20250108.txt
 | `webinar_*` | webinar | summary |
 | その他 | unknown | general |
 
+### メタデータ別ファイル方式
+
+入力ファイルと同名の `.meta.yaml` ファイルを配置することで、ファイルごとにメタデータを指定できます。
+
+**優先順位:**
+1. コマンドライン引数（最優先）
+2. `.meta.yaml` ファイル
+3. ファイル名パターンによる自動推測
+
+**使い方:**
+
+1. テンプレートをコピー
+```bash
+cp templates/metadata_template.yaml meeting_20250108.meta.yaml
+```
+
+2. メタデータを編集
+```yaml
+# meeting_20250108.meta.yaml
+source: meeting
+type: minutes
+topics:
+  - SAP
+  - BTP
+```
+
+3. 入力ファイルと同じフォルダに配置
+```
+input/
+├── meeting_20250108.txt      # 入力ファイル
+└── meeting_20250108.meta.yaml # メタデータファイル
+```
+
+Google Drive上で使用する場合も、Inputフォルダに両ファイルを配置してください。
+
 ## Cost Estimate
 
 月額コスト: 約1,000〜1,200円
@@ -296,6 +331,8 @@ echo-me/
 │       ├── notion_publisher.py    # Notion投稿モジュール
 │       ├── approval_watcher.py    # 承認済みファイル監視
 │       └── metadata_extractor.py  # RAGメタデータ抽出
+├── templates/
+│   └── metadata_template.yaml # メタデータテンプレート
 ├── .gitignore
 ├── requirements.txt
 └── README.md

@@ -162,6 +162,8 @@ echo-me/
 │       ├── notion_publisher.py    # Notion投稿モジュール
 │       ├── approval_watcher.py    # 承認済みファイル監視モジュール
 │       └── metadata_extractor.py  # RAGメタデータ抽出モジュール
+├── templates/
+│   └── metadata_template.yaml # メタデータテンプレート
 ├── .gitignore
 ├── requirements.txt
 └── README.md
@@ -172,7 +174,8 @@ echo-me/
 ```
 Google Drive/
 ├── 100. Input/                    # 入力フォルダ（GDRIVE_INPUT_FOLDER_ID）
-│   └── *.md, *.txt, etc.          # 未処理ファイル → 処理後 _processed_ プレフィックス付与
+│   ├── *.md, *.txt, etc.          # 未処理ファイル → 処理後 _processed_ プレフィックス付与
+│   └── *.meta.yaml                # メタデータ別ファイル（オプション）
 ├── 200. Awaiting review/          # 出力フォルダ（GDRIVE_OUTPUT_FOLDER_ID）
 │   └── *_blog.md, *_linkedin.txt, *_x_post.txt
 ├── 300. Approved/                 # 承認済みフォルダ
@@ -317,8 +320,34 @@ RAG用メタデータ抽出を担当するモジュール。
 | `ContentMetadata` | データクラス | - | メタデータを格納 |
 | `extract_metadata(filename, ...)` | ファイル名, オプション | `ContentMetadata` | メタデータを抽出 |
 | `infer_metadata_from_filename(filename)` | ファイル名 | `dict` | ファイル名からメタデータを推測 |
+| `get_meta_yaml_path(filepath)` | ファイルパス | `str` | .meta.yamlファイルのパスを取得 |
+| `load_metadata_from_yaml(filepath)` | ファイルパス | `dict \| None` | .meta.yamlからメタデータを読み込み |
 | `parse_topics_string(topics_str)` | カンマ区切り文字列 | `list[str]` | トピック文字列をパース |
 | `add_frontmatter_to_content(content, metadata)` | コンテンツ, メタデータ | `str` | YAMLフロントマターを追加 |
+
+**メタデータ優先順位:**
+1. コマンドライン引数（最優先）
+2. `.meta.yaml`ファイル
+3. ファイル名パターンによる自動推測
+
+**メタデータ別ファイル方式:**
+入力ファイルと同名の`.meta.yaml`ファイルを配置してメタデータを指定可能。
+
+```
+meeting_20250108.txt       # 入力ファイル
+meeting_20250108.meta.yaml # メタデータファイル
+```
+
+**テンプレート:** `templates/metadata_template.yaml`
+
+```yaml
+# メタデータテンプレート
+source: meeting  # meeting / interview / memo / webinar / unknown
+type: minutes    # minutes / transcript / note / summary / general
+topics:
+  - SAP
+  - BTP
+```
 
 **ファイル名パターンによる自動推測:**
 | パターン | source | type |
@@ -365,6 +394,7 @@ original_file: meeting_20250108.txt
 | `src/modules/notion_publisher.py` | Notion APIを使用したページ作成 |
 | `src/modules/approval_watcher.py` | 承認済みファイルの監視・Notion投稿 |
 | `src/modules/metadata_extractor.py` | RAGメタデータ抽出・フロントマター生成 |
+| `templates/metadata_template.yaml` | メタデータ別ファイル用テンプレート |
 
 ## Input File Types
 
