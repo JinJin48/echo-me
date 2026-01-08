@@ -71,6 +71,7 @@
   - blog.md（Notion用）
   - linkedin.txt（LinkedIn用）
   - x_post.txt（X/Twitter用）
+- **RAGメタデータ**: 出力MDファイルにYAMLフロントマターを自動追加
 - **入力形式**: .txt, .md, .docx, .pdf（OCR処理済み）
 - **定期実行**: Cloud Run + Cloud Scheduler（15分ごと）
 - **承認ワークフロー**: 人によるレビュー後、プラットフォームへ配信
@@ -80,6 +81,62 @@
   - X: 手動投稿（コンテンツ生成のみ）
 - **Discord通知**: 生成完了、Notion投稿結果
 - **CI/CD**: Cloud Buildによる自動デプロイ
+
+## CLI Usage (Local)
+
+ローカルでファイルを処理するCLIツール `echo-me.py` が利用可能です。
+
+### 基本的な使い方
+
+```bash
+# 自動推測（ファイル名からメタデータを推測）
+python echo-me.py meeting_20250108.txt
+
+# 手動上書き
+python echo-me.py input.txt --source "webinar" --type "summary" --topics "SAP,BTP"
+
+# 出力先を指定
+python echo-me.py input.txt --output ./my_output
+```
+
+### オプション
+
+| オプション | 短縮形 | 説明 |
+|-----------|--------|------|
+| `--output` | `-o` | 出力ディレクトリ（デフォルト: output） |
+| `--source` | `-s` | メタデータのsourceを手動指定 |
+| `--type` | `-t` | メタデータのtypeを手動指定 |
+| `--topics` | - | トピックタグをカンマ区切りで指定 |
+| `--date` | - | 日付を手動指定（ISO形式: YYYY-MM-DD） |
+| `--no-timestamp` | - | 出力ディレクトリにタイムスタンプを付けない |
+
+## RAG Metadata
+
+生成されたブログ記事（blog.md）にはYAMLフロントマターが自動追加されます。
+
+### 出力例
+
+```yaml
+---
+source: meeting
+type: minutes
+date: 2025-01-08
+topics: [SAP, GAP]
+original_file: meeting_20250108.txt
+---
+
+# ブログ記事の内容...
+```
+
+### ファイル名パターンによる自動推測
+
+| パターン | source | type |
+|----------|--------|------|
+| `meeting_*` | meeting | minutes |
+| `interview_*` | interview | transcript |
+| `memo_*` | memo | note |
+| `webinar_*` | webinar | summary |
+| その他 | unknown | general |
 
 ## Cost Estimate
 
@@ -223,6 +280,7 @@ gcloud builds submit --config=cloudbuild.yaml
 ```
 echo-me/
 ├── main.py                    # Cloud Run用エントリーポイント
+├── echo-me.py                 # ローカル用CLIツール
 ├── Dockerfile                 # Cloud Run用Dockerイメージ定義
 ├── Procfile                   # Cloud Run用プロセス定義
 ├── cloudbuild.yaml            # Cloud Build CI/CD設定
@@ -235,8 +293,9 @@ echo-me/
 │       ├── content_formatter/ # 出力フォーマットモジュール
 │       ├── gdrive_watcher/    # Google Drive監視
 │       ├── notifier/          # Discord通知
-│       ├── notion_publisher.py # Notion投稿モジュール
-│       └── approval_watcher.py # 承認済みファイル監視
+│       ├── notion_publisher.py    # Notion投稿モジュール
+│       ├── approval_watcher.py    # 承認済みファイル監視
+│       └── metadata_extractor.py  # RAGメタデータ抽出
 ├── .gitignore
 ├── requirements.txt
 └── README.md

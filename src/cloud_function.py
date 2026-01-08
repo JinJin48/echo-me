@@ -14,6 +14,7 @@ from modules.content_formatter import save_outputs
 from modules.gdrive_watcher import GDriveWatcher
 from modules.notifier import notify_error, notify_review
 from modules.approval_watcher import process_approved_files
+from modules.metadata_extractor import extract_metadata, add_frontmatter_to_content
 
 
 def main(request=None):
@@ -66,10 +67,14 @@ def main(request=None):
                         x_post = processor.generate_content(content, "x_post")
                         linkedin = processor.generate_content(content, "linkedin")
 
+                        # メタデータを抽出してブログにフロントマターを追加
+                        metadata = extract_metadata(filename=file_name)
+                        blog_with_frontmatter = add_frontmatter_to_content(blog, metadata)
+
                         # 一時ディレクトリに保存
                         output_dir = os.path.join(temp_dir, "output")
                         paths = save_outputs(
-                            blog=blog,
+                            blog=blog_with_frontmatter,
                             x_post=x_post,
                             linkedin=linkedin,
                             output_dir=output_dir,

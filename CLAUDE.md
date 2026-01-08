@@ -130,6 +130,7 @@ echo-meは、音声ファイルやMarkdownファイルからブログ・SNS投�
 ```
 echo-me/
 ├── main.py                    # Cloud Run用エントリーポイント
+├── echo-me.py                 # ローカル用CLIツール
 ├── Dockerfile                 # Cloud Run用Dockerイメージ定義
 ├── Procfile                   # Cloud Run用プロセス定義
 ├── cloudbuild.yaml            # Cloud Build CI/CD設定
@@ -159,7 +160,8 @@ echo-me/
 │       │   ├── discord.py
 │       │   └── README.md
 │       ├── notion_publisher.py    # Notion投稿モジュール
-│       └── approval_watcher.py    # 承認済みファイル監視モジュール
+│       ├── approval_watcher.py    # 承認済みファイル監視モジュール
+│       └── metadata_extractor.py  # RAGメタデータ抽出モジュール
 ├── .gitignore
 ├── requirements.txt
 └── README.md
@@ -306,11 +308,51 @@ Notion APIを使用したコンテンツ投稿モジュール。
 3. Discord通知（成功/エラー）
 4. 投稿済みフォルダ（400. Posted -> Notion）に移動
 
+### metadata_extractor
+
+RAG用メタデータ抽出を担当するモジュール。
+
+| 関数/クラス | 引数 | 戻り値 | 説明 |
+|-------------|------|--------|------|
+| `ContentMetadata` | データクラス | - | メタデータを格納 |
+| `extract_metadata(filename, ...)` | ファイル名, オプション | `ContentMetadata` | メタデータを抽出 |
+| `infer_metadata_from_filename(filename)` | ファイル名 | `dict` | ファイル名からメタデータを推測 |
+| `parse_topics_string(topics_str)` | カンマ区切り文字列 | `list[str]` | トピック文字列をパース |
+| `add_frontmatter_to_content(content, metadata)` | コンテンツ, メタデータ | `str` | YAMLフロントマターを追加 |
+
+**ファイル名パターンによる自動推測:**
+| パターン | source | type |
+|----------|--------|------|
+| `meeting_*` | meeting | minutes |
+| `interview_*` | interview | transcript |
+| `memo_*` | memo | note |
+| `webinar_*` | webinar | summary |
+| その他 | unknown | general |
+
+**ContentMetadataフィールド:**
+- `source`: コンテンツの出所（meeting, webinar, etc.）
+- `type`: コンテンツの種類（minutes, summary, etc.）
+- `date`: 処理日（ISO形式: YYYY-MM-DD）
+- `topics`: トピックタグのリスト
+- `original_file`: 元ファイル名
+
+**出力フロントマター例:**
+```yaml
+---
+source: meeting
+type: minutes
+date: 2025-01-08
+topics: [SAP, GAP]
+original_file: meeting_20250108.txt
+---
+```
+
 ## File Descriptions
 
 | ファイル | 役割 |
 |----------|------|
 | `main.py` | Cloud Run用エントリーポイント |
+| `echo-me.py` | ローカル用CLIツール（メタデータオプション付き） |
 | `Dockerfile` | Cloud Run用Dockerイメージ定義 |
 | `Procfile` | Cloud Run用プロセス定義（functions-framework起動） |
 | `cloudbuild.yaml` | Cloud Build CI/CD設定（自動ビルド・デプロイ） |
@@ -322,6 +364,7 @@ Notion APIを使用したコンテンツ投稿モジュール。
 | `src/modules/notifier/` | Discord Webhook通知 |
 | `src/modules/notion_publisher.py` | Notion APIを使用したページ作成 |
 | `src/modules/approval_watcher.py` | 承認済みファイルの監視・Notion投稿 |
+| `src/modules/metadata_extractor.py` | RAGメタデータ抽出・フロントマター生成 |
 
 ## Input File Types
 
@@ -378,6 +421,31 @@ Notion APIを使用したコンテンツ投稿モジュール。
 - モデル: `claude-sonnet-4-20250514`
 
 ## Usage
+
+### ローカルCLI（echo-me.py）
+
+ローカルでファイルを処理するCLIツール。
+
+```bash
+# 自動推測（ファイル名からメタデータを推測）
+python echo-me.py meeting_20250108.txt
+
+# 手動上書き
+python echo-me.py input.txt --source "webinar" --type "summary" --topics "SAP,BTP"
+
+# 出力先を指定
+python echo-me.py input.txt --output ./my_output
+```
+
+**CLIオプション:**
+| オプション | 短縮形 | 説明 |
+|-----------|--------|------|
+| `--output` | `-o` | 出力ディレクトリ（デフォルト: output） |
+| `--source` | `-s` | メタデータのsourceを手動指定 |
+| `--type` | `-t` | メタデータのtypeを手動指定 |
+| `--topics` | - | トピックタグをカンマ区切りで指定 |
+| `--date` | - | 日付を手動指定（ISO形式: YYYY-MM-DD） |
+| `--no-timestamp` | - | 出力ディレクトリにタイムスタンプを付けない |
 
 ### Cloud Runデプロイ
 
