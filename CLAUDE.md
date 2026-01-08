@@ -199,6 +199,14 @@ Google Drive/
 
 **対応形式:** `.txt`, `.md`, `.docx`, `.pdf`
 
+**複数エンコーディング対応（.txt, .md）:**
+テキストファイルは以下のエンコーディングを順番に試行：
+1. UTF-8
+2. UTF-16（BOM付きファイル対応）
+3. Shift-JIS
+4. CP932（Windows日本語）
+5. Latin-1（フォールバック）
+
 **PDF処理仕様:**
 - PyMuPDFでテキスト抽出
 - テキストが10文字未満の場合は`ValueError`を返す（OCR未処理と判断）

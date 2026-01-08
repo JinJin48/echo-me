@@ -317,10 +317,20 @@ gcloud builds submit --config=cloudbuild.yaml
 
 | 形式 | 拡張子 | 備考 |
 |------|--------|------|
-| プレーンテキスト | .txt | - |
-| Markdown | .md | - |
+| プレーンテキスト | .txt | 複数エンコーディング対応 |
+| Markdown | .md | 複数エンコーディング対応 |
 | Microsoft Word | .docx | python-docx使用 |
 | PDF | .pdf | OCR処理済みのみ対応 |
+
+### 複数エンコーディング対応
+
+テキストファイル（.txt, .md）は以下のエンコーディングを順番に試行して読み込みます：
+
+1. UTF-8
+2. UTF-16（BOM付きファイル対応）
+3. Shift-JIS
+4. CP932（Windows日本語）
+5. Latin-1（フォールバック）
 
 ### PDF対応の注意事項
 
